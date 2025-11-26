@@ -1,6 +1,6 @@
 import os
 from logging import Logger, getLogger
-from typing import List, Optional
+from datetime import datetime
 
 import jpype
 from pydantic import BaseModel, Field
@@ -22,12 +22,12 @@ from myelin.pricers.url_loader import UrlLoader
 
 
 class FqhcLineOutput(BaseModel):
-    return_code: Optional[ReturnCode] = None
-    addon_payment: Optional[float] = None
-    coinsurance_amount: Optional[float] = None
-    line_number: Optional[int] = None
-    mdpcp_reduction_amount: Optional[float] = None
-    payment: Optional[float] = None
+    return_code: ReturnCode | None = None
+    addon_payment: float | None = None
+    coinsurance_amount: float | None = None
+    line_number: int | None = None
+    mdpcp_reduction_amount: float | None = None
+    payment: float | None = None
 
     def from_java(self, java_obj: jpype.JObject) -> None:
         ret_code = java_obj.getReturnCodeData()
@@ -43,13 +43,13 @@ class FqhcLineOutput(BaseModel):
 
 class FqhcOutput(BaseModel):
     claim_id: str = ""
-    ioce_output: Optional[IoceOutput] = None
-    calculation_version: Optional[str] = None
-    return_code: Optional[ReturnCode] = None
-    total_payment: Optional[float] = None
-    geographic_adjustment_factor: Optional[float] = None
-    coinsurance_amount: Optional[float] = None
-    line_payment_data: List[FqhcLineOutput] = Field(default_factory=list)
+    ioce_output: IoceOutput | None = None
+    calculation_version: str | None = None
+    return_code: ReturnCode | None = None
+    total_payment: float | None = None
+    geographic_adjustment_factor: float | None = None
+    coinsurance_amount: float | None = None
+    line_payment_data: list[FqhcLineOutput] = Field(default_factory=list)
 
     def from_java(self, java_obj: jpype.JObject) -> None:
         self.calculation_version = str(java_obj.getCalculationVersion())
@@ -75,17 +75,17 @@ class FqhcOutput(BaseModel):
 class FqhcClient:
     def __init__(
         self,
-        jar_path=None,
-        db: Optional[Engine] = None,
-        logger: Optional[Logger] = None,
+        jar_path: str | None = None,
+        db: Engine | None = None,
+        logger: Logger | None = None,
     ):
         if not jpype.isJVMStarted():
             raise RuntimeError(
-                "JVM is not started. Please start the JVM before using HospiceClient."
+                "JVM is not started. Please start the JVM before using FqhcClient."
             )
         # We need to use the URL class loader from Java to prevent classpath issues with other CMS pricers
         if jar_path is None:
-            raise ValueError("jar_path must be provided to HospiceClient")
+            raise ValueError("jar_path must be provided to FqhcClient")
         if not os.path.exists(jar_path):
             raise ValueError(f"jar_path does not exist: {jar_path}")
         self.url_loader = UrlLoader()
@@ -95,7 +95,7 @@ class FqhcClient:
         if logger is not None:
             self.logger = logger
         else:
-            self.logger = getLogger("HospiceClient")
+            self.logger = getLogger("FqhcClient")
         self.load_classes()
         try:
             run_client_load_classes(self)
@@ -107,7 +107,7 @@ class FqhcClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         self.fqhc_pricer_config_class = jpype.JClass(
             "gov.cms.fiss.pricers.fqhc.FqhcPricerConfiguration",
             loader=self.url_loader.class_loader,
@@ -167,7 +167,7 @@ class FqhcClient:
             "java.time.format.DateTimeFormatter", loader=self.url_loader.class_loader
         )
 
-    def pricer_setup(self):
+    def pricer_setup(self) -> None:
         self.fqhc_config_obj = self.fqhc_pricer_config_class()
         self.csv_ingest_obj = self.fqhc_csv_ingest_class()
         self.fqhc_config_obj.setCsvIngestionConfiguration(self.csv_ingest_obj)
@@ -182,10 +182,10 @@ class FqhcClient:
                 "Failed to create FQHCPricerDispatch object. Check your JAR file and classpath."
             )
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(self, py_date: datetime) -> jpype.JObject:
         return py_date_to_java_date(self, py_date)
 
-    def get_carrier_locality(self, claim: Claim, **kwargs):
+    def get_carrier_locality(self, claim: Claim, **kwargs: object) -> tuple[str, str]:
         if claim.billing_provider is not None:
             if claim.billing_provider.carrier.strip() != "":
                 return (claim.billing_provider.carrier, claim.billing_provider.locality)
@@ -212,7 +212,7 @@ class FqhcClient:
                 "No Carrier/Locality provided and no Zip code available to lookup Carrier/Locality Information"
             )
 
-        session = None
+        session: Session | None = None
         local_session = False
         if "session" in kwargs:
             if isinstance(kwargs["session"], Session):
@@ -242,7 +242,7 @@ class FqhcClient:
             .all()
         )
 
-        if not result:
+        if result is None:
             raise ValueError("No matching zip code found")
 
         for row in result:
@@ -260,7 +260,7 @@ class FqhcClient:
         raise ValueError("No matching zip code found")
 
     def create_input_claim(
-        self, claim: Claim, ioce_output: IoceOutput, **kwargs
+        self, claim: Claim, ioce_output: IoceOutput, **kwargs: object
     ) -> jpype.JObject:
         claim_object = self.fqhc_pricer_claim_data_class()
         pricing_request = self.fqhc_pricer_request_class()
@@ -310,24 +310,31 @@ class FqhcClient:
                         float(fqhc_data["med_advantage_plan_amount"])
                     )
 
-        claim_object.setServiceFromDate(self.py_date_to_java_date(claim.from_date))
-        claim_object.setServiceThroughDate(self.py_date_to_java_date(claim.thru_date))
+        if claim.from_date:
+            claim_object.setServiceFromDate(self.py_date_to_java_date(claim.from_date))
+        if claim.thru_date:
+            claim_object.setServiceThroughDate(
+                self.py_date_to_java_date(claim.thru_date)
+            )
 
         ioce_service_lines = self.array_list_class()
         line_id = 1
         for line in ioce_output.line_item_list:
             ioce_service_line = self.fqhc_ioce_service_line_class()
             ioce_service_line.setActionFlag(line.action_flag_output)
-            ioce_service_line.setBilledUnits(int(line.units_input))
+            if line.units_input:
+                ioce_service_line.setBilledUnits(int(line.units_input))
             ioce_service_line.setCompositeAdjustmentFlag(line.composite_adjustment_flag)
             ioce_service_line.setCoveredCharges(
                 self.java_big_decimal_class(line.charge)
             )
-            ioce_service_line.setDateOfService(
-                self.py_date_to_java_date(line.service_date)
-            )
+            if line.service_date:
+                ioce_service_line.setDateOfService(
+                    self.py_date_to_java_date(line.service_date)
+                )
             ioce_service_line.setDenyOrRejectFlag(line.rejection_denial_flag)
-            ioce_service_line.setDiscountingFormula(line.discounting_formula)
+            if line.discounting_formula:
+                ioce_service_line.setDiscountingFormula(line.discounting_formula)
             ioce_service_line.setHcpcsCode(line.hcpcs)
             modifiers = self.array_list_class()
             for mod in line.hcpcs_modifier_output_list:
@@ -353,7 +360,9 @@ class FqhcClient:
         return pricing_request
 
     @handle_java_exceptions
-    def process(self, claim: Claim, ioce_output: IoceOutput, **kwargs) -> FqhcOutput:
+    def process(
+        self, claim: Claim, ioce_output: IoceOutput, **kwargs: object
+    ) -> FqhcOutput:
         pricing_request = self.create_input_claim(claim, ioce_output, **kwargs)
         pricing_response = self.dispatch_obj.process(pricing_request)
         fqhc_output = FqhcOutput()

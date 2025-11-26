@@ -3,18 +3,25 @@ import io
 from contextlib import redirect_stderr
 from datetime import datetime
 from os import getenv
-from typing import Optional
+from typing import Callable, ParamSpec, Protocol, TypeVar
 
 import jpype
 from pydantic import BaseModel
 
 
-class ReturnCode(BaseModel):
-    code: Optional[str] = None
-    description: Optional[str] = None
-    explanation: Optional[str] = None
+class HasJavaDateClasses(Protocol):
+    """Protocol for classes that have Java date formatting classes."""
 
-    def from_java(self, java_return_code: jpype.JClass):
+    java_date_class: jpype.JClass
+    java_data_formatter: jpype.JClass
+
+
+class ReturnCode(BaseModel):
+    code: str | None = None
+    description: str | None = None
+    explanation: str | None = None
+
+    def from_java(self, java_return_code: jpype.JObject | None):
         """
         Convert a Java ReturnCode object to a Python ReturnCode object.
         """
@@ -26,7 +33,7 @@ class ReturnCode(BaseModel):
         return
 
 
-def float_or_none(value):
+def float_or_none(value: jpype.JObject | None) -> float | None:
     """
     Convert a value to float or return None if conversion fails.
     """
@@ -38,7 +45,9 @@ def float_or_none(value):
         return None
 
 
-def py_date_to_java_date(self, py_date):
+def py_date_to_java_date(
+    self: HasJavaDateClasses, py_date: datetime | str | int | None
+) -> jpype.JObject | None:
     """
     Convert a Python datetime object to a Java Date object.
     """
@@ -52,12 +61,12 @@ def py_date_to_java_date(self, py_date):
         # Check that we're in YYYY-MM-DD format
         try:
             date = datetime.strptime(py_date, "%Y-%m-%d")
-            return self.py_date_to_java_date(date)
+            return py_date_to_java_date(self, date)
         except ValueError:
             raise ValueError(
                 f"Invalid date format: {py_date}. Expected format is YYYY-MM-DD."
             )
-    elif isinstance(py_date, int):
+    else:
         # Assuming the int is in YYYYMMDD format
         date_str = str(py_date)
         if len(date_str) != 8:
@@ -66,10 +75,6 @@ def py_date_to_java_date(self, py_date):
             )
         formatter = self.java_data_formatter.ofPattern("yyyyMMdd")
         return self.java_date_class.parse(date_str, formatter)
-    else:
-        raise TypeError(
-            f"Unsupported date type: {type(py_date)}. Expected datetime, str, or int in YYYYMMDD format."
-        )
 
 
 def create_supported_years(pps: str) -> jpype.JObject:
@@ -96,7 +101,11 @@ def create_supported_years(pps: str) -> jpype.JObject:
     return java_array
 
 
-def handle_java_exceptions(func):
+P = ParamSpec("P")
+T = TypeVar("T")
+
+
+def handle_java_exceptions(func: Callable[P, T]) -> Callable[P, T]:
     """
     Decorator to catch and handle Java exceptions from jpype calls.
 
@@ -105,7 +114,7 @@ def handle_java_exceptions(func):
     """
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         try:
             return func(*args, **kwargs)
         except jpype.JException as java_ex:

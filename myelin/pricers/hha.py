@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 from logging import Logger, getLogger
-from typing import Optional
 
 import jpype
 from pydantic import BaseModel
@@ -23,10 +22,10 @@ from myelin.pricers.url_loader import UrlLoader
 
 class RevCodeData:
     def __init__(self):
-        self.code: Optional[str] = None
-        self.earliest_date: Optional[datetime] = None
-        self.count: Optional[int] = None
-        self.total_units: Optional[float] = None
+        self.code: str | None = None
+        self.earliest_date: datetime | None = None
+        self.count: int | None = None
+        self.total_units: float | None = None
 
 
 def get_rev_code_data(claim: Claim) -> dict[str, RevCodeData]:
@@ -54,10 +53,10 @@ def get_rev_code_data(claim: Claim) -> dict[str, RevCodeData]:
 
 
 class RevenuePaymentData(BaseModel):
-    revenue_code: Optional[str] = None
-    addon_visit_amount: Optional[float] = None
-    cost: Optional[float] = None
-    dollar_rate: Optional[float] = None
+    revenue_code: str | None = None
+    addon_visit_amount: float | None = None
+    cost: float | None = None
+    dollar_rate: float | None = None
 
     def from_java(self, java_object) -> None:
         self.revenue_code = str(java_object.getRevenueCode())
@@ -68,17 +67,17 @@ class RevenuePaymentData(BaseModel):
 
 class HhaOutput(BaseModel):
     claim_id: str = ""
-    return_code: Optional[ReturnCode] = None
-    hhrg_weight: Optional[float] = None
-    hhrg_payment: Optional[float] = None
-    late_submission_penalty: Optional[float] = None
-    outlier_payment: Optional[float] = None
-    standardized_payment: Optional[float] = None
-    total_covered_visits: Optional[int] = None
-    vbp_amount: Optional[float] = None
-    hhrg_code: Optional[str] = None
-    total_payment: Optional[float] = None
-    revenue_payments: Optional[list[RevenuePaymentData]] = None
+    return_code: ReturnCode | None = None
+    hhrg_weight: float | None = None
+    hhrg_payment: float | None = None
+    late_submission_penalty: float | None = None
+    outlier_payment: float | None = None
+    standardized_payment: float | None = None
+    total_covered_visits: int | None = None
+    vbp_amount: float | None = None
+    hhrg_code: str | None = None
+    total_payment: float | None = None
+    revenue_payments: list[RevenuePaymentData] | None = None
 
     def from_java(self, java_object) -> None:
         payment_data = java_object.getPaymentData()
@@ -113,9 +112,9 @@ class HhaOutput(BaseModel):
 class HhaClient:
     def __init__(
         self,
-        jar_path=None,
-        db: Optional[Engine] = None,
-        logger: Optional[Logger] = None,
+        jar_path: str | None = None,
+        db: Engine | None = None,
+        logger: Logger | None = None,
     ):
         if not jpype.isJVMStarted():
             raise RuntimeError(
@@ -145,7 +144,7 @@ class HhaClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         self.hha_pricer_config_class = jpype.JClass(
             "gov.cms.fiss.pricers.hha.HhaPricerConfiguration",
             loader=self.url_loader.class_loader,
@@ -213,7 +212,7 @@ class HhaClient:
             "java.time.format.DateTimeFormatter", loader=self.url_loader.class_loader
         )
 
-    def pricer_setup(self):
+    def pricer_setup(self) -> None:
         self.hha_config_obj = self.hha_pricer_config_class()
         self.csv_ingest_obj = self.hha_csv_ingest_class()
         self.hha_config_obj.setCsvIngestionConfiguration(self.csv_ingest_obj)
@@ -228,7 +227,9 @@ class HhaClient:
                 "Failed to create HhaPricerDispatch object. Check your JAR file and classpath."
             )
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(
+        self, py_date: datetime | str | int | None
+    ) -> jpype.JObject:
         return py_date_to_java_date(self, py_date)
 
     def calculate_hhrg_days(self, claim: Claim) -> int:
@@ -246,7 +247,7 @@ class HhaClient:
         return 0
 
     def create_input_claim(
-        self, claim: Claim, hhag_output: Optional[HhagOutput] = None, **kwargs
+        self, claim: Claim, hhag_output: HhagOutput | None = None, **kwargs: object
     ) -> jpype.JObject:
         if self.db is None:
             raise ValueError("Database engine is not set for HhaClient")
@@ -309,7 +310,8 @@ class HhaClient:
             )
             java_rev.setRevenueCode(data.code)
             java_rev.setQuantityOfCoveredVisits(data.count)
-            java_rev.setQuantityOfOutlierUnits(int(data.total_units))
+            if data.total_units:
+                java_rev.setQuantityOfOutlierUnits(int(data.total_units))
             rev_list.add(java_rev)
         claim_object.setRevenueLines(rev_list)
 
@@ -389,7 +391,9 @@ class HhaClient:
         raise ValueError("Dispatch object does not have a process method.")
 
     @handle_java_exceptions
-    def process(self, claim: Claim, hhag_output: Optional[HhagOutput] = None, **kwargs):
+    def process(
+        self, claim: Claim, hhag_output: HhagOutput | None = None, **kwargs: object
+    ):
         """
         Process the claim and return the SNF pricing response.
 

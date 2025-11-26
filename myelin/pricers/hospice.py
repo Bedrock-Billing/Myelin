@@ -1,7 +1,6 @@
 import os
 from datetime import datetime, timedelta
 from logging import Logger, getLogger
-from typing import Optional
 
 import jpype
 from pydantic import BaseModel
@@ -28,9 +27,9 @@ EXPIRED_DISCHARGE_STATUS_CODES = ["40", "41", "42"]
 
 
 class BillingGroupOutput(BaseModel):
-    hcpcs_code: Optional[str] = None
-    revenue_code: Optional[str] = None
-    payment_amount: Optional[float] = None
+    hcpcs_code: str | None = None
+    revenue_code: str | None = None
+    payment_amount: float | None = None
 
     def from_java(self, java_obj: jpype.JClass):
         self.hcpcs_code = str(java_obj.getHcpcsCode())
@@ -40,8 +39,8 @@ class BillingGroupOutput(BaseModel):
 
 
 class EolaOutput(BaseModel):
-    index: Optional[int] = None
-    payment_amount: Optional[float] = None
+    index: int | None = None
+    payment_amount: float | None = None
 
     def from_java(self, java_obj: jpype.JClass):
         self.index = java_obj.getIndex()
@@ -51,15 +50,15 @@ class EolaOutput(BaseModel):
 
 class HospiceOutput(BaseModel):
     claim_id: str = ""
-    calculation_version: Optional[str] = None
-    return_code: Optional[ReturnCode] = None
-    high_routine_home_care_days: Optional[int] = None
-    low_routine_home_care_days: Optional[int] = None
-    patient_wage_index: Optional[float] = None
-    provider_wage_index: Optional[float] = None
-    billing_group_payments: Optional[list[BillingGroupOutput]] = None
-    eola_payments: Optional[list[EolaOutput]] = None
-    total_payment: Optional[float] = None
+    calculation_version: str | None = None
+    return_code: ReturnCode | None = None
+    high_routine_home_care_days: int | None = None
+    low_routine_home_care_days: int | None = None
+    patient_wage_index: float | None = None
+    provider_wage_index: float | None = None
+    billing_group_payments: list[BillingGroupOutput] | None = None
+    eola_payments: list[EolaOutput] | None = None
+    total_payment: float | None = None
 
     def from_java(self, java_obj: jpype.JClass):
         self.calculation_version = str(java_obj.getCalculationVersion())
@@ -200,9 +199,9 @@ class RoutineCareRanges:
 class HospiceClient:
     def __init__(
         self,
-        jar_path=None,
-        db: Optional[Engine] = None,
-        logger: Optional[Logger] = None,
+        jar_path: str | None = None,
+        db: Engine | None = None,
+        logger: Logger | None = None,
     ):
         if not jpype.isJVMStarted():
             raise RuntimeError(
@@ -232,7 +231,7 @@ class HospiceClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         self.hospice_pricer_config_class = jpype.JClass(
             "gov.cms.fiss.pricers.hospice.HospicePricerConfiguration",
             loader=self.url_loader.class_loader,
@@ -300,7 +299,7 @@ class HospiceClient:
             "java.time.format.DateTimeFormatter", loader=self.url_loader.class_loader
         )
 
-    def pricer_setup(self):
+    def pricer_setup(self) -> None:
         self.hospice_config_obj = self.hospice_pricer_config_class()
         self.csv_ingest_obj = self.hospice_csv_ingest_class()
         self.hospice_config_obj.setCsvIngestionConfiguration(self.csv_ingest_obj)
@@ -315,7 +314,9 @@ class HospiceClient:
                 "Failed to create HospicePricerDispatch object. Check your JAR file and classpath."
             )
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(
+        self, py_date: datetime | str | int | None
+    ) -> jpype.JObject:
         return py_date_to_java_date(self, py_date)
 
     def get_patient_cbsa(self, claim: Claim) -> None | str:

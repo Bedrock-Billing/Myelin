@@ -3,7 +3,14 @@ from datetime import datetime
 import jpype
 
 from myelin.helpers.utils import handle_java_exceptions
-from myelin.input.claim import PoaType, LineItem, IoceOverride
+from myelin.input.claim import (
+    Claim,
+    DiagnosisCode,
+    IoceOverride,
+    LineItem,
+    PoaType,
+    ValueCode,
+)
 from myelin.ioce.ioce_output import IoceOutput
 from myelin.plugins import apply_client_methods, run_client_load_classes
 
@@ -26,14 +33,11 @@ class IoceClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         """Load all required Java classes and components"""
         try:
-            # Main component classes
             self.ioce_component_class = jpype.JClass("gov.cms.oce.IoceComponent")
             self.ioce_claim_class = jpype.JClass("gov.cms.oce.IoceClaim")
-
-            # External model classes
             self.oce_claim_factory_class = jpype.JClass(
                 "gov.cms.oce.model.external.OceClaimFactory"
             )
@@ -53,15 +57,13 @@ class IoceClient:
             self.oce_processing_info_class = jpype.JClass(
                 "gov.cms.oce.model.external.OceProcessingInformation"
             )
-
-            # Initialize factory and component
             self.factory = self.oce_claim_factory_class.getInstance()
             self.ioce_component = self.ioce_component_class()
 
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Ioce Java classes: {e}")
 
-    def format_date(self, date_input):
+    def format_date(self, date_input: datetime | str | None) -> str:
         """Convert date to YYYYMMDD format required by IOCE"""
         if date_input is None:
             return ""
@@ -81,13 +83,13 @@ class IoceClient:
         else:
             raise ValueError(f"Unsupported date type: {type(date_input)}")
 
-    def format_age(self, age):
+    def format_age(self, age: int | None) -> str:
         """Format age as 3-digit string"""
         if age is None:
             return "000"
         return f"{int(age):03d}"
 
-    def format_sex(self, sex):
+    def format_sex(self, sex: str | None) -> str:
         """Format sex as required by IOCE (0=unknown, 1=male, 2=female)"""
         if sex is None:
             return "0"
@@ -99,16 +101,15 @@ class IoceClient:
         else:
             return "0"
 
-    def create_diagnosis_code(self, dx_code):
+    def create_diagnosis_code(
+        self, dx_code: DiagnosisCode | None
+    ) -> jpype.JObject | None:
         """Create Java OceDiagnosisCode from Python DiagnosisCode"""
-        if dx_code is None:
+        if not dx_code or not dx_code.code:
             return None
 
-        # Remove periods from diagnosis codes
         clean_code = dx_code.code.replace(".", "")
-
-        # Convert POA to string
-        poa_str = "U"  # Default to "U" (unknown)
+        poa_str = "U"
         if dx_code.poa == PoaType.Y:
             poa_str = "Y"
         elif dx_code.poa == PoaType.N:
@@ -120,13 +121,13 @@ class IoceClient:
 
         return self.factory.createDiagnosisCode(clean_code, poa_str)
 
-    def create_hcpcs_modifier(self, modifier_str):
+    def create_hcpcs_modifier(self, modifier_str: str | None) -> jpype.JObject | None:
         """Create Java OceHcpcsModifier from string"""
         if modifier_str is None or modifier_str == "":
             return None
         return self.factory.createHcpcsModifier(str(modifier_str))
 
-    def create_value_code(self, value_code):
+    def create_value_code(self, value_code: ValueCode) -> jpype.JObject | None:
         """Create Java OceValueCode from Python ValueCode"""
         if value_code is None:
             return None
@@ -135,14 +136,13 @@ class IoceClient:
         amount_str = f"{int(value_code.amount * 100):09d}"  # Convert to cents
         return self.factory.createValueCode(value_code.code, amount_str)
 
-    def create_line_item(self, line_item: LineItem):
+    def create_line_item(self, line_item: LineItem | None) -> jpype.JObject | None:
         """Create Java OceLineItem from Python LineItem"""
-        if line_item is None:
+        if not line_item:
             return None
 
         java_line = self.factory.createLineItem()
 
-        # Set basic line item fields
         if line_item.service_date:
             java_line.setServiceDate(self.format_date(line_item.service_date))
 
@@ -152,7 +152,6 @@ class IoceClient:
         if line_item.hcpcs:
             java_line.setHcpcs(str(line_item.hcpcs))
 
-        # Add HCPCS modifiers
         if line_item.modifiers:
             for modifier in line_item.modifiers:
                 if modifier:
@@ -255,18 +254,15 @@ class IoceClient:
                 java_line.addContractorEditBypass("-1")
         return java_line
 
-    def create_oce_claim(self, claim):
+    def create_oce_claim(self, claim: Claim) -> jpype.JObject:
         """Create Java OceClaim from Python Claim"""
-        # Create the claim object
         oce_claim = self.factory.createClaim()
 
-        # Set claim identifier
         if claim.claimid:
             oce_claim.setClaimId(str(claim.claimid))
         else:
             oce_claim.setClaimId("DEFAULT_CLAIM_ID")
 
-        # Set patient demographics
         if claim.patient:
             oce_claim.setAge(self.format_age(claim.patient.age))
             oce_claim.setSex(self.format_sex(claim.patient.sex))
@@ -274,7 +270,6 @@ class IoceClient:
             oce_claim.setAge("065")  # Default age
             oce_claim.setSex("0")  # Unknown sex
 
-        # Set dates
         if claim.from_date:
             oce_claim.setDateStarted(self.format_date(claim.from_date))
         if claim.thru_date:
@@ -282,7 +277,6 @@ class IoceClient:
         if hasattr(claim, "receipt_date") and claim.receipt_date:
             oce_claim.setReceiptDate(self.format_date(claim.receipt_date))
 
-        # Set bill type (3-character)
         if claim.bill_type:
             bill_type_str = str(claim.bill_type).ljust(3, "0")[
                 :3
@@ -291,7 +285,6 @@ class IoceClient:
         else:
             oce_claim.setBillType("131")  # Default outpatient bill type
 
-        # Set patient discharge status (2-character)
         if claim.patient_status:
             status_str = str(claim.patient_status).zfill(2)[
                 :2
@@ -307,7 +300,6 @@ class IoceClient:
         else:
             oce_claim.setOppsFlag("1")  # Default to Opps
 
-        # Set provider identifiers
         if claim.billing_provider and claim.billing_provider.npi:
             npi_str = str(claim.billing_provider.npi)[:13]  # Truncate to 13 chars
             oce_claim.setNationalProviderId(npi_str)
@@ -320,19 +312,16 @@ class IoceClient:
         else:
             oce_claim.setCmsCertificationNumber("123456")  # Default
 
-        # Add occurrence codes
         if hasattr(claim, "occurrence_codes") and claim.occurrence_codes:
             for occ_code in claim.occurrence_codes:
                 if occ_code and occ_code.code:
                     oce_claim.addOccurrenceCodeInput(str(occ_code.code))
 
-        # Add condition codes
         if hasattr(claim, "cond_codes") and claim.cond_codes:
             for cond_code in claim.cond_codes:
                 if cond_code:
                     oce_claim.addConditionCodeInput(str(cond_code))
 
-        # Add value codes
         if hasattr(claim, "value_codes") and claim.value_codes:
             for value_code in claim.value_codes:
                 if value_code:
@@ -340,7 +329,6 @@ class IoceClient:
                     if java_value_code:
                         oce_claim.addValueCodeInput(java_value_code)
 
-        # Set principal diagnosis
         if claim.principal_dx:
             java_principal_dx = self.create_diagnosis_code(claim.principal_dx)
             if java_principal_dx:
@@ -352,7 +340,6 @@ class IoceClient:
             if java_rfv_dx:
                 oce_claim.addReasonForVisitDiagnosisCode(java_rfv_dx)
 
-        # Add secondary diagnoses
         if claim.secondary_dxs:
             for secondary_dx in claim.secondary_dxs:
                 if secondary_dx:
@@ -360,7 +347,6 @@ class IoceClient:
                     if java_secondary_dx:
                         oce_claim.addSecondaryDiagnosisCode(java_secondary_dx)
 
-        # Add line items
         if claim.lines:
             for line in claim.lines:
                 if line:
@@ -371,26 +357,22 @@ class IoceClient:
         return oce_claim
 
     @handle_java_exceptions
-    def process(self, claim, include_descriptions: bool = True, **kwargs) -> IoceOutput:
+    def process(
+        self, claim: Claim, include_descriptions: bool = True, **kwargs: object
+    ) -> IoceOutput:
         """Process a claim through IOCE and return IoceOutput"""
         try:
-            # Create Java OceClaim from Python claim
             oce_claim = self.create_oce_claim(claim)
 
-            # Create IoceClaim wrapper
             ioce_claim = self.ioce_claim_class(oce_claim)
 
-            # Process the claim
             self.ioce_component.process(ioce_claim)
 
-            # Get the processed model back
             processed_model = ioce_claim.getModel()
 
-            # Extract output
             Ioce_output = IoceOutput()
             Ioce_output.from_java(processed_model)
 
-            # Append descriptions
             if include_descriptions:
                 Ioce_output = self.append_descriptions(Ioce_output)
 
@@ -401,12 +383,12 @@ class IoceClient:
 
     def _enrich_disposition_and_edits(
         self,
-        result,
+        result: IoceOutput,
         disposition_type_id: str,
         disposition_attr: str,
         edit_list_attr: str,
         internal_version: int,
-    ):
+    ) -> None:
         """
         Generic function to enrich disposition and edit descriptions.
 
@@ -417,9 +399,8 @@ class IoceClient:
             edit_list_attr: The edit list attribute name (e.g., "claim_rejection_edit_list")
             internal_version: The internal version for lookups
         """
-        disposition_value = getattr(result, disposition_attr, None)
+        disposition_value: str | None = getattr(result, disposition_attr, None)
         if disposition_value:
-            # Get disposition description
             disp_desc = self.ioce_component.getClaimDispositionDescription(
                 disposition_type_id, internal_version
             )
@@ -429,7 +410,6 @@ class IoceClient:
                 str(disp_desc) if disp_desc else "",
             )
 
-            # Get disposition value description
             disp_value_desc = self.ioce_component.getClaimDispositionValueDescription(
                 disposition_type_id, disposition_value, internal_version
             )

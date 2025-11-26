@@ -1,7 +1,7 @@
 import csv
 import os
 from multiprocessing import cpu_count
-from typing import Any, Dict, Iterable, List, Literal, Optional
+from typing import Any, Iterable, Literal
 
 import jpype
 import requests
@@ -142,39 +142,39 @@ OPSF_BY_NPI = (
 
 
 class OPSFProvider(BaseModel):
-    provider_ccn: Optional[str] = None
-    effective_date: Optional[int] = None
-    national_provider_identifier: Optional[str] = None
-    fiscal_year_begin_date: Optional[int] = None
-    export_date: Optional[int] = None
-    termination_date: Optional[int] = None
-    waiver_indicator: Optional[str] = None
-    intermediary_number: Optional[str] = None
-    provider_type: Optional[str] = None
-    special_locality_indicator: Optional[str] = None
-    change_code_wage_index_reclassification: Optional[str] = None
-    msa_actual_geographic_location: Optional[str] = None
-    msa_wage_index_location: Optional[str] = None
-    cost_of_living_adjustment: Optional[float] = None
-    state_code: Optional[str] = None
-    tops_indicator: Optional[str] = None
-    hospital_quality_indicator: Optional[str] = None
-    operating_cost_to_charge_ratio: Optional[float] = None
-    cbsa_actual_geographic_location: Optional[str] = None
-    cbsa_wage_index_location: Optional[str] = None
-    special_wage_index: Optional[float] = None
-    special_payment_indicator: Optional[str] = None
-    esrd_children_quality_indicator: Optional[str] = None
-    device_cost_to_charge_ratio: Optional[float] = None
-    county_code: Optional[str] = None
-    payment_cbsa: Optional[str] = None
-    payment_model_adjustment: Optional[float] = None
-    medicare_performance_adjustment: Optional[float] = None
-    supplemental_wage_index_indicator: Optional[str] = None
-    supplemental_wage_index: Optional[float] = None
-    last_updated: Optional[str] = None  # Date in YYYY-MM-DD format
-    carrier_code: Optional[str] = None
-    locality_code: Optional[str] = None
+    provider_ccn: str | None = None
+    effective_date: int | None = None
+    national_provider_identifier: str | None = None
+    fiscal_year_begin_date: int | None = None
+    export_date: int | None = None
+    termination_date: int | None = None
+    waiver_indicator: str | None = None
+    intermediary_number: str | None = None
+    provider_type: str | None = None
+    special_locality_indicator: str | None = None
+    change_code_wage_index_reclassification: str | None = None
+    msa_actual_geographic_location: str | None = None
+    msa_wage_index_location: str | None = None
+    cost_of_living_adjustment: float | None = None
+    state_code: str | None = None
+    tops_indicator: str | None = None
+    hospital_quality_indicator: str | None = None
+    operating_cost_to_charge_ratio: float | None = None
+    cbsa_actual_geographic_location: str | None = None
+    cbsa_wage_index_location: str | None = None
+    special_wage_index: float | None = None
+    special_payment_indicator: str | None = None
+    esrd_children_quality_indicator: str | None = None
+    device_cost_to_charge_ratio: float | None = None
+    county_code: str | None = None
+    payment_cbsa: str | None = None
+    payment_model_adjustment: float | None = None
+    medicare_performance_adjustment: float | None = None
+    supplemental_wage_index_indicator: str | None = None
+    supplemental_wage_index: float | None = None
+    last_updated: str | None = None  # Date in YYYY-MM-DD format
+    carrier_code: str | None = None
+    locality_code: str | None = None
 
     def model_post_init(self, __context: Any) -> None:
         self.model_config["extra"] = "allow"
@@ -237,8 +237,12 @@ class OPSFProvider(BaseModel):
 
     # Backwards compatibility alias
     def from_sqlite(
-        self, conn: sqlalchemy.Engine, provider: Provider, date_int: int, **kwargs
-    ):  # type: ignore
+        self,
+        conn: sqlalchemy.Engine,
+        provider: Provider,
+        date_int: int,
+        **kwargs: object,
+    ) -> "OPSFProvider":
         return self.from_db(conn, provider, date_int, **kwargs)
 
     def set_java_values(self, java_obj: jpype.JObject, client):
@@ -402,14 +406,14 @@ class OPSFDatabase:
     # -----------------------------------------------------
     # Loading Logic (stream + bulk_insert_mappings)
     # -----------------------------------------------------
-    def _row_iter(self, csv_path: str) -> Iterable[Dict[str, Any]]:
+    def _row_iter(self, csv_path: str) -> Iterable[dict[str, Any]]:
         with open(csv_path, "r", newline="") as fh:
             reader = csv.reader(fh)
             next(reader, None)  # discard header
             for row in reader:
                 if not row or len(row) < len(DATATYPES):
                     continue
-                record: Dict[str, Any] = {}
+                record: dict[str, Any] = {}
                 for name, meta in DATATYPES.items():
                     pos = meta["position"]
                     val = row[pos] if pos < len(row) else None
@@ -450,7 +454,7 @@ class OPSFDatabase:
             if truncate:
                 sess.query(OPSF).delete()
                 sess.commit()
-            batch: List[Dict[str, Any]] = []
+            batch: list[dict[str, Any]] = []
             from sqlalchemy import insert as sql_insert
 
             insert_stmt = sql_insert(OPSF)
@@ -474,12 +478,12 @@ class OPSFDatabase:
         return total
 
     # Backwards compatibility name
-    def to_sqlite(self, create_table: bool = True):  # type: ignore
+    def to_sqlite(self, create_table: bool = True) -> None:
         if create_table:
             Base.metadata.create_all(self.engine)
         self.populate(download=True, truncate=True)
 
-    def close(self):
+    def close(self) -> None:
         if self._engine:
             self._engine.dispose()
             self._engine = None

@@ -3,7 +3,6 @@ import shutil
 from datetime import datetime
 from logging import Logger, getLogger
 from threading import current_thread
-from typing import Optional
 
 import jpype
 from pydantic import BaseModel
@@ -24,29 +23,29 @@ from myelin.pricers.url_loader import UrlLoader
 
 
 class AdditionalCapitalVariableData(BaseModel):
-    capital_cost_outlier: Optional[float] = 0.0
-    capital_disproportionate_share_hospital_adjustment: Optional[float] = 0.0
-    capital_disproportionate_share_hospital_amount: Optional[float] = 0.0
-    capital_exception_amount: Optional[float] = None
-    capital_federal_rate: Optional[float] = 0.0
-    capital_federal_specific_portion: Optional[float] = 0.0
-    capital_federal_specific_portion_2b: Optional[float] = 0.0
-    capital_federal_specific_portion_percent: Optional[float] = 0.0
-    capital_geographic_adjustment_factor: Optional[float] = 1.0
-    capital_hospital_specific_portion: Optional[float] = None
-    capital_hospital_specific_portion_part: Optional[float] = None
-    capital_hospital_specific_portion_percent: Optional[float] = None
-    capital_indirect_medical_education_adjustment: Optional[float] = 0.0
-    capital_indirect_medical_education_amount: Optional[float] = 0.0
-    capital_large_urban_factor: Optional[float] = 1
-    capital_old_hold_harmless_amount: Optional[float] = None
-    capital_old_hold_harmless_rate: Optional[float] = None
-    capital_outlier: Optional[float] = None
-    capital_outlier_2b: Optional[float] = None
-    capital_payment_code: Optional[str] = None
-    capital_total_payment: Optional[float] = 0.0
+    capital_cost_outlier: float | None = 0.0
+    capital_disproportionate_share_hospital_adjustment: float | None = 0.0
+    capital_disproportionate_share_hospital_amount: float | None = 0.0
+    capital_exception_amount: float | None = None
+    capital_federal_rate: float | None = 0.0
+    capital_federal_specific_portion: float | None = 0.0
+    capital_federal_specific_portion_2b: float | None = 0.0
+    capital_federal_specific_portion_percent: float | None = 0.0
+    capital_geographic_adjustment_factor: float | None = 1.0
+    capital_hospital_specific_portion: float | None = None
+    capital_hospital_specific_portion_part: float | None = None
+    capital_hospital_specific_portion_percent: float | None = None
+    capital_indirect_medical_education_adjustment: float | None = 0.0
+    capital_indirect_medical_education_amount: float | None = 0.0
+    capital_large_urban_factor: float | None = 1
+    capital_old_hold_harmless_amount: float | None = None
+    capital_old_hold_harmless_rate: float | None = None
+    capital_outlier: float | None = None
+    capital_outlier_2b: float | None = None
+    capital_payment_code: str | None = None
+    capital_total_payment: float | None = 0.0
 
-    def from_java(self, java_obj):
+    def from_java(self, java_obj: jpype.JObject) -> None:
         self.capital_cost_outlier = float_or_none(java_obj.getCapitalCostOutlier())
         self.capital_disproportionate_share_hospital_adjustment = float_or_none(
             java_obj.getCapitalDisproportionateShareHospitalAdjustment()
@@ -126,15 +125,15 @@ class AdditionalCapitalVariableData(BaseModel):
 
 
 class AdditionalOperatingVariableData(BaseModel):
-    operating_base_drg_payment: Optional[float] = 0.0
-    operating_disproportionate_share_hospital_amount: Optional[float] = 0.0
-    operating_disproportionate_share_hospital_ratio: Optional[float] = 0.0
-    operating_dollar_threshold: Optional[float] = 0.0
-    operating_federal_specific_portion_part: Optional[float] = 0.0
-    operating_hospital_specific_portion_part: Optional[float] = 0.0
-    operating_indirect_medical_education_amount: Optional[float] = 0.0
+    operating_base_drg_payment: float | None = 0.0
+    operating_disproportionate_share_hospital_amount: float | None = 0.0
+    operating_disproportionate_share_hospital_ratio: float | None = 0.0
+    operating_dollar_threshold: float | None = 0.0
+    operating_federal_specific_portion_part: float | None = 0.0
+    operating_hospital_specific_portion_part: float | None = 0.0
+    operating_indirect_medical_education_amount: float | None = 0.0
 
-    def from_java(self, java_obj):
+    def from_java(self, java_obj: jpype.JObject) -> None:
         self.operating_base_drg_payment = float_or_none(
             java_obj.getOperatingBaseDrgPayment()
         )
@@ -170,15 +169,15 @@ class AdditionalOperatingVariableData(BaseModel):
 
 
 class AdditionalPaymentInformationData(BaseModel):
-    bundled_adjustment_payment: Optional[float] = None
-    electronic_health_record_adjustment_payment: Optional[float] = None
-    hospital_acquired_condition_payment: Optional[float] = None
-    hospital_readmission_reduction_adjustment_payment: Optional[float] = 0.0
-    standard_value: Optional[float] = 0.0
-    uncompensated_care_payment: Optional[float] = 0.0
-    value_based_purchasing_adjustment_payment: Optional[float] = 0.0
+    bundled_adjustment_payment: float | None = None
+    electronic_health_record_adjustment_payment: float | None = None
+    hospital_acquired_condition_payment: float | None = None
+    hospital_readmission_reduction_adjustment_payment: float | None = 0.0
+    standard_value: float | None = 0.0
+    uncompensated_care_payment: float | None = 0.0
+    value_based_purchasing_adjustment_payment: float | None = 0.0
 
-    def from_java(self, java_obj):
+    def from_java(self, java_obj: jpype.JObject) -> None:
         self.bundled_adjustment_payment = float_or_none(
             java_obj.getBundledAdjustmentPayment()
         )
@@ -221,33 +220,33 @@ class AdditionalCalculationVariableData(BaseModel):
     additional_payment_information: AdditionalPaymentInformationData = (
         AdditionalPaymentInformationData()
     )
-    cost_threshold: Optional[float] = 0.0
-    discharge_fraction: Optional[float] = 1.0
-    drg_relative_weight: Optional[float] = 0.0
-    drg_relative_weight_fraction: Optional[float] = 0.0
-    federal_specific_portion_percent: Optional[float] = 1.0
-    flx7_payment: Optional[float] = 0.0
-    hospital_readmission_reduction_adjustment: Optional[float] = 1.0
-    hospital_readmission_reduction_indicator: Optional[str] = ""
-    hospital_specific_portion_percent: Optional[float] = None
-    hospital_specific_portion_rate: Optional[float] = 0.0
-    islet_isolation_add_on_payment: Optional[float] = None
-    low_volume_payment: Optional[float] = None
-    national_labor_cost: Optional[float] = 0.0
-    national_labor_percent: Optional[float] = 0.62
-    national_non_labor_cost: Optional[float] = 0.0
-    national_non_labor_percent: Optional[float] = 0.38
-    national_percent: Optional[float] = 1.0
-    new_technology_add_on_payment: Optional[float] = None
-    passthrough_total_plus_misc: Optional[float] = None
-    regular_labor_cost: Optional[float] = 0.0
-    regular_non_labor_cost: Optional[float] = 0.0
-    regular_percent: Optional[float] = None
-    value_based_purchasing_adjustment_amount: Optional[float] = 1.0
-    value_based_purchasing_participant_indicator: Optional[str] = "Y"
-    wage_index: Optional[float] = 1.0
+    cost_threshold: float | None = 0.0
+    discharge_fraction: float | None = 1.0
+    drg_relative_weight: float | None = 0.0
+    drg_relative_weight_fraction: float | None = 0.0
+    federal_specific_portion_percent: float | None = 1.0
+    flx7_payment: float | None = 0.0
+    hospital_readmission_reduction_adjustment: float | None = 1.0
+    hospital_readmission_reduction_indicator: str | None = ""
+    hospital_specific_portion_percent: float | None = None
+    hospital_specific_portion_rate: float | None = 0.0
+    islet_isolation_add_on_payment: float | None = None
+    low_volume_payment: float | None = None
+    national_labor_cost: float | None = 0.0
+    national_labor_percent: float | None = 0.62
+    national_non_labor_cost: float | None = 0.0
+    national_non_labor_percent: float | None = 0.38
+    national_percent: float | None = 1.0
+    new_technology_add_on_payment: float | None = None
+    passthrough_total_plus_misc: float | None = None
+    regular_labor_cost: float | None = 0.0
+    regular_non_labor_cost: float | None = 0.0
+    regular_percent: float | None = None
+    value_based_purchasing_adjustment_amount: float | None = 1.0
+    value_based_purchasing_participant_indicator: str | None = "Y"
+    wage_index: float | None = 1.0
 
-    def from_java(self, java_obj):
+    def from_java(self, java_obj: jpype.JObject) -> None:
         self.additional_payment_information = AdditionalPaymentInformationData()
         self.additional_payment_information.from_java(
             java_obj.getAdditionalPaymentInformation()
@@ -349,26 +348,26 @@ class IppsOutput(BaseModel):
     """
 
     claim_id: str = ""
-    return_code: Optional[ReturnCode] = None
-    calculation_version: Optional[str] = None
-    average_length_of_stay: Optional[float] = None
-    days_cutoff: Optional[float] = None
-    lifetime_reserved_days_used: Optional[int] = 0
-    operating_dsh_adjustment: Optional[float] = 0.0
-    operating_fsp_part: Optional[float] = 0.0
-    operating_hsp_part: Optional[float] = 0.0
-    operating_ime_adjustment: Optional[float] = 0.0
-    operating_outlier_payment_part: Optional[float] = 0.0
-    outlier_days: Optional[int] = 0
-    regular_days_used: Optional[int] = 0
-    final_cbsa: Optional[str] = None
-    final_wage_index: Optional[float] = 1.0
-    total_payment: Optional[float] = 0.0
+    return_code: ReturnCode | None = None
+    calculation_version: str | None = None
+    average_length_of_stay: float | None = None
+    days_cutoff: float | None = None
+    lifetime_reserved_days_used: int | None = 0
+    operating_dsh_adjustment: float | None = 0.0
+    operating_fsp_part: float | None = 0.0
+    operating_hsp_part: float | None = 0.0
+    operating_ime_adjustment: float | None = 0.0
+    operating_outlier_payment_part: float | None = 0.0
+    outlier_days: int | None = 0
+    regular_days_used: int | None = 0
+    final_cbsa: str | None = None
+    final_wage_index: float | None = 1.0
+    total_payment: float | None = 0.0
     additional_calculation_variables: AdditionalCalculationVariableData = (
         AdditionalCalculationVariableData()
     )
 
-    def from_java(self, java_obj):
+    def from_java(self, java_obj: jpype.JObject) -> None:
         self.calculation_version = str(java_obj.getCalculationVersion())
         return_code_value = java_obj.getReturnCodeData()
         if return_code_value:
@@ -429,9 +428,9 @@ class IppsOutput(BaseModel):
 class IppsClient:
     def __init__(
         self,
-        jar_path=None,
-        db: Optional[Engine] = None,
-        logger: Optional[Logger] = None,
+        jar_path: str | None = None,
+        db: Engine | None = None,
+        logger: Logger | None = None,
     ):
         if not jpype.isJVMStarted():
             raise RuntimeError(
@@ -527,7 +526,7 @@ class IppsClient:
             )
         ins.close()
 
-    def add_hmo(self, jar_path):
+    def add_hmo(self, jar_path: str) -> None:
         """
         Adds HMO functionality to the IPPS pricer by dynamically modifying Java classes.
 
@@ -603,7 +602,7 @@ class IppsClient:
         # Step 3: Enable HMO totals calculation
         self._enable_hmo_totals_calculation(cp)
 
-    def _modify_rule_context_executor(self, class_pool):
+    def _modify_rule_context_executor(self, class_pool: jpype.JClass) -> None:
         """
         Modifies the RuleContextExecutor to extract and set HMO flag during pricing.
 
@@ -635,7 +634,7 @@ class IppsClient:
         )
         ctx_class.toClass(ctx_neighbor)
 
-    def _enable_hmo_totals_calculation(self, class_pool):
+    def _enable_hmo_totals_calculation(self, class_pool: jpype.JClass) -> None:
         """
         Enables the HMO totals calculation rule by overriding shouldExecute to always return true.
 
@@ -655,7 +654,7 @@ class IppsClient:
         )
         hmo_class.toClass(hmo_neighbor)
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         self.ipps_csv_ingest_class = jpype.JClass(
             "gov.cms.fiss.pricers.common.csv.CsvIngestionConfiguration",
             loader=self.url_loader.class_loader,
@@ -731,7 +730,7 @@ class IppsClient:
             "java.lang.String", loader=self.url_loader.class_loader
         )
 
-    def create_dispatch(self):
+    def create_dispatch(self) -> jpype.JObject:
         return self.ipps_dispatch(self.ipps_config_obj)
 
     def pricer_setup(self):
@@ -749,11 +748,13 @@ class IppsClient:
                 "Failed to create IppsPricerDispatch object. Check your JAR file and classpath."
             )
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(
+        self, py_date: datetime | str | int | None
+    ) -> jpype.JObject:
         return py_date_to_java_date(self, py_date)
 
     def create_input_claim(
-        self, claim: Claim, drg_output: Optional[MsdrgOutput] = None, **kwargs
+        self, claim: Claim, drg_output: MsdrgOutput | None = None, **kwargs: object
     ) -> jpype.JObject:
         claim_object = self.ipps_claim_data_class()
         provider_data = self.inpatient_prov_data()
@@ -875,7 +876,7 @@ class IppsClient:
 
     @handle_java_exceptions
     def process(
-        self, claim: Claim, drg_output: Optional[MsdrgOutput] = None, **kwargs
+        self, claim: Claim, drg_output: MsdrgOutput | None = None, **kwargs: object
     ) -> IppsOutput:
         """
         Process the claim and return the IPPS pricing response.

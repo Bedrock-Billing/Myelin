@@ -2,7 +2,6 @@ import time
 from datetime import datetime
 from enum import Enum
 from threading import RLock
-from typing import Optional
 
 import jpype
 
@@ -58,7 +57,7 @@ class DrgClient:
         except Exception:
             pass
 
-    def load_enums(self):
+    def load_enums(self) -> None:
         # Get enumeration values needed for DRG Runtime options
         try:
             self.logic_tiebreaker = jpype.JClass(
@@ -91,7 +90,7 @@ class DrgClient:
         except Exception as e:
             raise RuntimeError(f"Failed to initialize enumerations: {e}")
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         try:
             self.drg_claim_class = jpype.JClass(
                 "gov.agency.msdrg.model.v2.transfer.MsdrgClaim"
@@ -118,7 +117,7 @@ class DrgClient:
         except Exception as e:
             raise RuntimeError(f"Failed to initialize input classes: {e}")
 
-    def increment_version(self, version):
+    def increment_version(self, version: str) -> str:
         """
         If version ends with "1", increment the version by 9.
         If version ends with "0", increment the version by 1.
@@ -129,7 +128,7 @@ class DrgClient:
             return str(int(version) + 1)
         return version
 
-    def create_drg_options(self, poa_exempt: bool):
+    def create_drg_options(self, poa_exempt: bool) -> jpype.JObject:
         try:
             runtime_options = jpype.JClass("gov.agency.msdrg.model.v2.RuntimeOptions")()
             drg_options = jpype.JClass("gov.agency.msdrg.model.v2.MsdrgRuntimeOption")()
@@ -147,10 +146,9 @@ class DrgClient:
         drg_options.put(msdrg_option_flags.RUNTIME_OPTION_FLAGS, runtime_options)
         return drg_options
 
-    def load_drg_groupers(self):
+    def load_drg_groupers(self) -> None:
         end_version = self.determine_end_version()
         curr_version = MSDRG_VSTART
-        # Initialize the DRG Runtime options Java object
         exempt_drg_options = self.create_drg_options(poa_exempt=True)
         non_exempt_drg_options = self.create_drg_options(poa_exempt=False)
         self.drg_versions = {}
@@ -224,7 +222,7 @@ class DrgClient:
             )
             drg_component.reconfigure(msdrg_runtime_option)
 
-    def determine_end_version(self):
+    def determine_end_version(self) -> str:
         """
         Max DRG version will be based on the current date
          Step 1.) Version = Year - 1983
@@ -248,7 +246,7 @@ class DrgClient:
             version -= 1
             return f"{version}0"
 
-    def determine_drg_version(self, date: datetime):
+    def determine_drg_version(self, date: datetime) -> str:
         """
         Determine the DRG version based on the date provided.
         """
@@ -263,11 +261,11 @@ class DrgClient:
         else:
             return f"{year - 1}0"
 
-    def calculate_age_in_days(self, claim: Claim):
+    def calculate_age_in_days(self, claim: Claim) -> int:
         """
         Calculate the age of the patient in days based on the claim's from_date and patient's date_of_birth.
         """
-        if claim.patient.date_of_birth is None:
+        if not claim.patient.date_of_birth:
             return 0
         if isinstance(claim.from_date, str):
             from_date = datetime.strptime(claim.from_date, "%Y-%m-%d")
@@ -276,9 +274,9 @@ class DrgClient:
         else:
             raise ValueError("Invalid date format for claim.from_date")
 
-        if type(claim.patient.date_of_birth) is str:
+        if isinstance(claim.patient.date_of_birth, str):
             dob = datetime.strptime(claim.patient.date_of_birth, "%Y-%m-%d")
-        elif type(claim.patient.date_of_birth) is datetime:
+        elif isinstance(claim.patient.date_of_birth, datetime):
             dob = claim.patient.date_of_birth
         else:
             raise ValueError("Invalid date format for patient.date_of_birth")
@@ -286,7 +284,7 @@ class DrgClient:
         return age_in_days if age_in_days > 0 else 0
 
     def mapped_op_or_self(
-        self, op, mappings: Optional[ICD10ConvertOutput] = None
+        self, op: str, mappings: ICD10ConvertOutput | None = None
     ) -> str:
         """
         Maps the procedure code to its converted value if available, else returns self
@@ -305,7 +303,7 @@ class DrgClient:
         ]  # <---- We always return the first conversion choice
 
     def mapped_dx_or_self(
-        self, dx, mappings: Optional[ICD10ConvertOutput] = None
+        self, dx: str, mappings: ICD10ConvertOutput | None = None
     ) -> str:
         """
         Maps the diagnosis code to its converted value if available, else returns self
@@ -324,25 +322,23 @@ class DrgClient:
         ]  # <---- We always return the first conversion choice
 
     def create_drg_input(
-        self, claim: Claim, mappings: Optional[ICD10ConvertOutput] = None
-    ):
+        self, claim: Claim, mappings: ICD10ConvertOutput | None = None
+    ) -> jpype.JObject | None:
         """
         Creates the DRG input object from the claim and mappings.
         """
         input = self.drg_input_class.builder()
-        # Set Patient Age
-        if claim.patient is not None:
+        if claim.patient:
             if claim.patient.age > 0:
                 input.withAgeInYears(claim.patient.age)
-            elif claim.patient.age == 0 and claim.patient.date_of_birth is not None:
+            elif claim.patient.age == 0 and claim.patient.date_of_birth:
                 input.withAgeInYears(0)
                 age_in_days = self.calculate_age_in_days(claim)
                 input.withAgeDaysAdmit(age_in_days)
                 input.withAgeDaysDischarge(age_in_days + claim.los)
             else:
                 raise ValueError("Patient age or date of birth must be provided")
-        # Set Sex
-        if claim.patient.sex is not None:
+        if claim.patient.sex:
             if str(claim.patient.sex).upper().startswith("M"):
                 input.withSex(self.sex.MALE)
             elif str(claim.patient.sex).upper().startswith("F"):
@@ -350,8 +346,7 @@ class DrgClient:
             else:
                 input.withSex(self.sex.UNKNOWN)
 
-        # Set Discharge Status
-        if claim.patient_status is not None:
+        if claim.patient_status:
             # try to convert to integer
             try:
                 discharge_status = int(claim.patient_status)
@@ -428,14 +423,13 @@ class DrgClient:
             input.withProcedureCodes(java_pxs)
         return input.build()
 
-    def extract_msdrg_output(self, java_drg_output) -> MsdrgOutput:
+    def extract_msdrg_output(self, java_drg_output: jpype.JObject) -> MsdrgOutput:
         """
         Extract all data from the Java MsdrgOutput object and populate a Python MsdrgOutput object.
         """
         output = MsdrgOutput()
 
         try:
-            # Grouper Information
             output.grouper_flags.from_java(java_drg_output.getGrouperFlags())
             output.initial_grc = str(java_drg_output.getInitialGrc().name())
             output.final_grc = str(java_drg_output.getFinalGrc().name())
@@ -486,7 +480,6 @@ class DrgClient:
                 java_drg_output.getFinalDrgSdxSeverity().name()
             )
 
-            # HAC Information
             output.hac_status = str(java_drg_output.getHacStatus().name())
             output.num_hac_categories_satisfied = (
                 java_drg_output.getNumHacCategoriesSatisfied()
@@ -520,10 +513,10 @@ class DrgClient:
     def process(
         self,
         claim: Claim,
-        drg_version=None,
-        icd_converter: Optional[ICDConverter] = None,
+        drg_version: str | None = None,
+        icd_converter: ICDConverter | None = None,
         poa_exempt: bool = False,
-    ):
+    ) -> MsdrgOutput:
         """
         Processes the claim through the DRG system.
         """
@@ -542,24 +535,23 @@ class DrgClient:
 
         if drg_version is None:
             """Determine the DRG version based on the claim date"""
-            if type(claim.thru_date) is str:
+            if isinstance(claim.thru_date, str):
                 claim_date = datetime.strptime(claim.thru_date, "%Y-%m-%d")
-            elif type(claim.thru_date) is datetime:
+            elif isinstance(claim.thru_date, datetime):
                 claim_date = claim.thru_date
             else:
                 raise ValueError("Invalid date format for claim.thru_date")
             drg_version = self.determine_drg_version(claim_date)
         if drg_version not in self.drg_versions:
             raise ValueError(f"DRG version {drg_version} is not loaded")
-        # Get the DRG component for the specified version
         if poa_exempt:
             drg_component = self.drg_versions[drg_version]["exempt"]
         else:
             drg_component = self.drg_versions[drg_version]["non_exempt"]
 
-        if claim.thru_date is None:
+        if not claim.thru_date:
             raise ValueError("Claim thru_date must be provided")
-        if claim.principal_dx is None:
+        if not claim.principal_dx:
             raise ValueError("Claim principal_dx must be provided")
 
         # Determine if code conversions are requests

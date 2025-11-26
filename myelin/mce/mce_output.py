@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import jpype
 from pydantic import BaseModel, Field
@@ -57,32 +57,32 @@ PX_EDIT_FLAGS = {
 
 class MceOutputDxCode(BaseModel):
     code: str
-    edit_flags: List[str] = Field(default_factory=list)
-    age_conflict_type: Optional[str] = None
+    edit_flags: list[str] = Field(default_factory=list)
+    age_conflict_type: str | None = None
 
 
 class MceOutputPrCode(BaseModel):
     code: str
-    edit_flags: List[str] = Field(default_factory=list)
+    edit_flags: list[str] = Field(default_factory=list)
 
 
 class MceOutput(BaseModel):
     version_used: int = 0
     edit_type: str = ""
-    edit_counters: Dict[str, Any] = Field(default_factory=dict)
-    diagnosis_codes: List[MceOutputDxCode] = Field(default_factory=list)
-    procedure_codes: List[MceOutputPrCode] = Field(default_factory=list)
+    edit_counters: dict[str, Any] = Field(default_factory=dict)
+    diagnosis_codes: list[MceOutputDxCode] = Field(default_factory=list)
+    procedure_codes: list[MceOutputPrCode] = Field(default_factory=list)
 
     # Java classes for jpype integration (not part of Pydantic model)
     java_map_class: Any = Field(default=None, exclude=True)
     icd_vers: Any = Field(default=None, exclude=True)
 
-    def model_post_init(self, __context):
+    def model_post_init(self, __context: Any) -> None:
         """Initialize Java classes after Pydantic model creation"""
         self.java_map_class = jpype.JClass("java.util.Map")
         self.icd_vers = jpype.JClass("gov.cms.editor.mce.component.edit.Const")
 
-    def from_java(self, java_output, mce_record):
+    def from_java(self, java_output: jpype.JObject, mce_record: jpype.JObject) -> None:
         self.version_used = java_output.getVersionUsed()
         self.edit_type = str(java_output.getEditType().name())
         edit_counters = java_output.getEditCounter()
@@ -91,7 +91,7 @@ class MceOutput(BaseModel):
             self.edit_counters[str(key.name())] = edit_counters.get(key)
 
         dx_codes = mce_record.getDiagnoses()
-        self.diagnosis_codes = []  # Clear before populating
+        self.diagnosis_codes = []
         for dx in dx_codes:
             dx_code = str(dx.getValue())
             edit_string = dx.getEditsString(self.icd_vers.ICD_10)
@@ -117,7 +117,7 @@ class MceOutput(BaseModel):
             )
 
         pr_codes = mce_record.getProcedures()
-        self.procedure_codes = []  # Clear before populating
+        self.procedure_codes = []
         for pr in pr_codes:
             pr_code = str(pr.getValue())
             edit_string = pr.getEditsString(self.icd_vers.ICD_10)

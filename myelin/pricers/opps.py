@@ -2,7 +2,6 @@ import os
 from datetime import datetime
 from logging import Logger, getLogger
 from threading import current_thread
-from typing import Optional
 
 import jpype
 from pydantic import BaseModel
@@ -23,16 +22,16 @@ from myelin.pricers.url_loader import UrlLoader
 
 
 class OppsLineOutput(BaseModel):
-    blood_deductible: Optional[float] = None
-    coinsurance_amount: Optional[float] = None
-    line_number: Optional[int] = None
-    payment: Optional[float] = None
-    reduced_coinsurance_amount: Optional[float] = None
-    reimbursement_amount: Optional[float] = None
-    total_deductible: Optional[float] = None
-    return_code: Optional[ReturnCode] = None
+    blood_deductible: float | None = None
+    coinsurance_amount: float | None = None
+    line_number: int | None = None
+    payment: float | None = None
+    reduced_coinsurance_amount: float | None = None
+    reimbursement_amount: float | None = None
+    total_deductible: float | None = None
+    return_code: ReturnCode | None = None
 
-    def from_java(self, java_object):
+    def from_java(self, java_object: jpype.JObject) -> None:
         """
         Convert a Java OppsLineOutput object to a Python OppsLineOutput object.
         """
@@ -60,19 +59,19 @@ class OppsOutput(BaseModel):
     """
 
     claim_id: str = ""
-    blood_deductible: Optional[float] = None
-    final_cbsa: Optional[str] = None
-    final_wage_index: Optional[float] = None
-    total_claim_charges: Optional[float] = None
-    total_claim_deductible: Optional[float] = None
-    total_claim_outlier_payment: Optional[float] = None
-    total_claim_payment: Optional[float] = None
-    blood_pints_used: Optional[int] = None
-    calculation_version: Optional[str] = None
-    return_code: Optional[ReturnCode] = None
-    service_lines: Optional[list[OppsLineOutput]] = None
+    blood_deductible: float | None = None
+    final_cbsa: str | None = None
+    final_wage_index: float | None = None
+    total_claim_charges: float | None = None
+    total_claim_deductible: float | None = None
+    total_claim_outlier_payment: float | None = None
+    total_claim_payment: float | None = None
+    blood_pints_used: int | None = None
+    calculation_version: str | None = None
+    return_code: ReturnCode | None = None
+    service_lines: list[OppsLineOutput] | None = None
 
-    def from_java(self, java_object):
+    def from_java(self, java_object: jpype.JObject) -> None:
         """
         Convert a Java OppsOutput object to a Python OppsOutput object.
         """
@@ -111,9 +110,9 @@ class OppsOutput(BaseModel):
 class OppsClient:
     def __init__(
         self,
-        jar_path=None,
-        db: Optional[Engine] = None,
-        logger: Optional[Logger] = None,
+        jar_path: str | None = None,
+        db: Engine | None = None,
+        logger: Logger | None = None,
     ):
         if not jpype.isJVMStarted():
             raise RuntimeError(
@@ -143,7 +142,7 @@ class OppsClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         """
         Load the necessary Java classes for the OPPS pricer.
         """
@@ -206,7 +205,7 @@ class OppsClient:
             "java.lang.String", loader=self.url_loader.class_loader
         )
 
-    def pricer_setup(self):
+    def pricer_setup(self) -> None:
         self.opps_config_obj = self.opps_price_config_class()
         # Get today's year
         supported_years = create_supported_years("OPPS")
@@ -217,14 +216,16 @@ class OppsClient:
                 "Failed to create OppsPricerDispatch object. Check your JAR file and classpath."
             )
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(
+        self, py_date: datetime | str | int | None
+    ) -> jpype.JObject:
         """
         Convert a Python datetime object to a Java LocalDate object.
         """
         return py_date_to_java_date(self, py_date)
 
     def create_input_claim(
-        self, claim: Claim, ioce_output: Optional[IoceOutput] = None, **kwargs
+        self, claim: Claim, ioce_output: IoceOutput | None = None, **kwargs: object
     ) -> jpype.JObject:
         opps_claim_object = self.opps_claim_data_class()
 
@@ -256,9 +257,11 @@ class OppsClient:
                 ioce_line.setPaymentIndicator(line.payment_indicator)
                 ioce_line.setPackageFlag(line.packaging_flag.flag)
                 ioce_line.setLineNumber(self.java_integer_class(i + 1))
-                ioce_line.setApcServiceUnits(int(line.units_output))
-                if str(line.discounting_formula).isnumeric():
-                    ioce_line.setDiscountingFormula((int(line.discounting_formula)))
+                if line.units_output is not None:
+                    ioce_line.setApcServiceUnits(int(line.units_output))
+                if line.discounting_formula is not None:
+                    if str(line.discounting_formula).isnumeric():
+                        ioce_line.setDiscountingFormula((int(line.discounting_formula)))
                 else:
                     raise ValueError(
                         f"Invalid discounting formula: {line.discounting_formula}. Expected an integer."
@@ -286,7 +289,9 @@ class OppsClient:
         return opps_claim_object
 
     @handle_java_exceptions
-    def process(self, claim: Claim, ioce_output: Optional[IoceOutput] = None, **kwargs):
+    def process(
+        self, claim: Claim, ioce_output: IoceOutput | None = None, **kwargs: object
+    ) -> OppsOutput:
         """
         Process the python claim object through the CMS OPPS Java Pricer.
         """

@@ -17,9 +17,7 @@ from .claim import (
     SpanCode,
     ValueCode,
 )
-
 from .ioce import IoceOverride
-
 
 __all__ = [
     "Address",

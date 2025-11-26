@@ -2,20 +2,22 @@ import logging
 import os
 from contextlib import ExitStack
 from threading import RLock
-from typing import Literal, Optional
+from types import TracebackType
+from typing import Literal
 
 import jpype
 from pydantic import BaseModel
 
+from myelin.converter import ICDConverter
 from myelin.database.manager import DatabaseManager
 from myelin.helpers.cms_downloader import CMSDownloader
 from myelin.helpers.utils import handle_java_exceptions
-from myelin.hhag.hhag_client import HhagClient, HhagOutput
+from myelin.hhag import HhagClient, HhagOutput
 from myelin.input.claim import Claim, Modules
-from myelin.ioce.ioce_client import IoceClient, IoceOutput
-from myelin.irfg.irfg_client import IrfgClient, IrfgOutput
-from myelin.mce.mce_client import MceClient, MceOutput
-from myelin.msdrg.drg_client import DrgClient, MsdrgOutput
+from myelin.ioce import IoceClient, IoceOutput
+from myelin.irfg import IrfgClient, IrfgOutput
+from myelin.mce import MceClient, MceOutput
+from myelin.msdrg import DrgClient, MsdrgOutput
 from myelin.pricers.esrd import EsrdClient, EsrdOutput
 from myelin.pricers.fqhc import FqhcClient, FqhcOutput
 from myelin.pricers.hha import HhaClient, HhaOutput
@@ -27,7 +29,7 @@ from myelin.pricers.ltch import LtchClient, LtchOutput
 from myelin.pricers.opps import OppsClient, OppsOutput
 from myelin.pricers.snf import SnfClient, SnfOutput
 
-PRICERS = {
+PRICERS: dict[str, str] = {
     "Esrd": "esrd-pricer",
     "Fqhc": "fqhc-pricer",
     "Hha": "hha-pricer",
@@ -42,31 +44,31 @@ PRICERS = {
 
 
 class MyelinOutput(BaseModel):
+    error: str | None = None
     # Editors
-    ioce: Optional[IoceOutput] = None
-    mce: Optional[MceOutput] = None
+    ioce: IoceOutput | None = None
+    mce: MceOutput | None = None
     # Groupers
-    hhag: Optional[HhagOutput] = None
-    msdrg: Optional[MsdrgOutput] = None
-    cmg: Optional[IrfgOutput] = None
+    hhag: HhagOutput | None = None
+    msdrg: MsdrgOutput | None = None
+    cmg: IrfgOutput | None = None
     # Pricers
-    ipps: Optional[IppsOutput] = None
-    opps: Optional[OppsOutput] = None
-    psych: Optional[IpfOutput] = None
-    ltch: Optional[LtchOutput] = None
-    irf: Optional[IrfOutput] = None
-    hospice: Optional[HospiceOutput] = None
-    snf: Optional[SnfOutput] = None
-    hha: Optional[HhaOutput] = None
-    esrd: Optional[EsrdOutput] = None
-    fqhc: Optional[FqhcOutput] = None
-    error: Optional[str] = None
+    ipps: IppsOutput | None = None
+    opps: OppsOutput | None = None
+    psych: IpfOutput | None = None
+    ltch: LtchOutput | None = None
+    irf: IrfOutput | None = None
+    hospice: HospiceOutput | None = None
+    snf: SnfOutput | None = None
+    hha: HhaOutput | None = None
+    esrd: EsrdOutput | None = None
+    fqhc: FqhcOutput | None = None
 
 
 class Myelin:
     # Class-level locks and tracking for thread safety
-    _jvm_lock = RLock()  # Thread-safe JVM operations
-    _jvm_started = False  # Track if we started the JVM
+    _jvm_lock: RLock = RLock()  # Thread-safe JVM operations
+    _jvm_started: bool = False  # Track if we started the JVM
 
     def __init__(
         self,
@@ -75,80 +77,86 @@ class Myelin:
         db_path: str = "./data/myelin.db",
         build_db: bool = False,
         log_level: int = logging.INFO,
-        extra_classpaths: list[str] = [],
+        extra_classpaths: list[str] | None = None,
         db_backend: Literal["sqlite", "postgresql"] = "sqlite",
     ):
-        # Store configuration
-        self.extra_classpaths = extra_classpaths or []
-        self.jar_path = jar_path
-        self.db_path = db_path
-        self.build_jar_dirs = build_jar_dirs
-        self.build_db = build_db
+        self.extra_classpaths: list[str] = extra_classpaths or []
+        self.jar_path: str = jar_path
+        self.db_path: str = db_path
+        self.build_jar_dirs: bool = build_jar_dirs
+        self.build_db: bool = build_db
 
-        # Initialize resource management
-        self._exit_stack = ExitStack()
-        self._initialized = False
+        self._exit_stack: ExitStack = ExitStack()
+        self._initialized: bool = False
 
-        # Pricer Clients @TODO: Add more pricer clients as needed
-        self.ipps_client: Optional[IppsClient] = None
-        self.opps_client: Optional[OppsClient] = None
-        self.ipf_client: Optional[IpfClient] = None
-        self.ltch_client: Optional[LtchClient] = None
-        self.irf_client: Optional[IrfClient] = None
-        self.hospice_client: Optional[HospiceClient] = None
-        self.snf_client: Optional[SnfClient] = None
-        self.hha_client: Optional[HhaClient] = None
-        self.esrd_client: Optional[EsrdClient] = None
-        self.fqhc_client: Optional[FqhcClient] = None
-        self.irfg_client: Optional[IrfgClient] = None
-        # End of Pricer Clients
+        self.ipps_client: IppsClient | None = None
+        self.opps_client: OppsClient | None = None
+        self.ipf_client: IpfClient | None = None
+        self.ltch_client: LtchClient | None = None
+        self.irf_client: IrfClient | None = None
+        self.hospice_client: HospiceClient | None = None
+        self.snf_client: SnfClient | None = None
+        self.hha_client: HhaClient | None = None
+        self.esrd_client: EsrdClient | None = None
+        self.fqhc_client: FqhcClient | None = None
+        self.irfg_client: IrfgClient | None = None
+        self.drg_client: DrgClient | None = None
+        self.mce_client: MceClient | None = None
+        self.ioce_client: IoceClient | None = None
+        self.hhag_client: HhagClient | None = None
 
-        # Initialize logger first
-        self.logger = logging.getLogger("Myelin")
+        self.pricers_path: str | None = None
+        self.pricer_jars: list[str] = []
+        self.cms_downloader: CMSDownloader | None = None
+
+        self.logger: logging.Logger = logging.getLogger("Myelin")
         self.logger.setLevel(log_level)
 
-        # Setup directories
         self._ensure_directories()
 
-        # Setup databases with resource management
-        self.db_manager = DatabaseManager(db_path, db_backend, build_db, log_level)
-        self._exit_stack.enter_context(self.db_manager)
-        self.icd10_converter = self.db_manager.icd10_converter
+        self.db_manager: DatabaseManager = DatabaseManager(
+            db_path, db_backend, build_db, log_level
+        )
+        _ = self._exit_stack.enter_context(self.db_manager)
+        self.icd10_converter: ICDConverter | None = self.db_manager.icd10_converter
 
-        # Setup CMS downloader if requested
         if self.build_jar_dirs:
             self.cms_downloader = CMSDownloader(
                 jars_dir=self.jar_path, log_level=self.logger.level
             )
             self.cms_downloader.build_jar_environment(False)
 
-        # Setup JVM with thread safety
         self._setup_jvm()
 
-    def __enter__(self):
+    def __enter__(self) -> "Myelin":
         """Context manager entry"""
         if not self._initialized:
             self.setup_clients()
             self._initialized = True
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool:
         """Context manager exit with proper cleanup"""
         self.cleanup()
         return False  # Don't suppress exceptions
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Comprehensive cleanup of all resources"""
         self._exit_stack.close()
 
-    def _ensure_directories(self):
+    def _ensure_directories(self) -> None:
         """Ensure required directories exist"""
         if not os.path.exists(self.jar_path):
             os.makedirs(self.jar_path)
         if not os.path.exists(os.path.dirname(self.db_path)):
             os.makedirs(os.path.dirname(self.db_path))
 
-    def _setup_jvm(self):
+    def _setup_jvm(self) -> None:
         """Thread-safe JVM initialization"""
         with Myelin._jvm_lock:
             if not jpype.isJVMStarted():
@@ -158,15 +166,14 @@ class Myelin:
                     Myelin._jvm_started = True
                     self.logger.info("JVM started successfully")
 
-                    # Register JVM shutdown with exit stack
-                    self._exit_stack.callback(self._shutdown_jvm)
+                    _ = self._exit_stack.callback(self._shutdown_jvm)
                 except Exception as e:
                     self.logger.error(f"Failed to start JVM: {e}")
                     raise RuntimeError(f"JVM startup failed: {e}") from e
             else:
                 self.logger.debug("JVM already started")
 
-    def _shutdown_jvm(self):
+    def _shutdown_jvm(self) -> None:
         """Thread-safe JVM shutdown"""
         with Myelin._jvm_lock:
             if jpype.isJVMStarted() and Myelin._jvm_started:
@@ -177,14 +184,13 @@ class Myelin:
                 except Exception as e:
                     self.logger.warning(f"Error shutting down JVM: {e}")
 
-    def setup_clients(self):
+    def setup_clients(self) -> None:
         """Initialize the CMS clients."""
         self.drg_client = DrgClient()
         self.mce_client = MceClient()
         self.ioce_client = IoceClient()
         self.hhag_client = HhagClient()
         self.irfg_client = IrfgClient()
-        # check for pricer sub directory
         if os.path.exists(os.path.join(self.jar_path, "pricers")):
             self.pricers_path = os.path.abspath(os.path.join(self.jar_path, "pricers"))
             self.pricer_jars = [
@@ -195,10 +201,9 @@ class Myelin:
         if self.pricer_jars:
             self.setup_pricers()
 
-    def setup_pricers(self):
-        # check if pricer jars exist by looking for value from PRICERS dictionary in file names of pricer_jars
+    def setup_pricers(self) -> None:
         for pricer, jar_name in PRICERS.items():
-            if any(jar_name in jar for jar in self.pricer_jars):
+            if self.pricer_jars and any(jar_name in jar for jar in self.pricer_jars):
                 try:
                     jar_path = os.path.abspath(
                         next(jar for jar in self.pricer_jars if jar_name in jar)
@@ -220,13 +225,14 @@ class Myelin:
                 )
 
     @handle_java_exceptions
-    def process(self, claim: Claim, **kwargs) -> MyelinOutput:
+    def process(self, claim: Claim, **kwargs: object) -> MyelinOutput:
         """Process a claim through the appropriate modules based on its configuration."""
 
         if not isinstance(claim, Claim):
             raise ValueError("Input must be an instance of Claim")
+
         # Validate the claim
-        Claim.model_validate(claim)
+        _ = Claim.model_validate(claim)
 
         results = MyelinOutput()
         if len(claim.modules) == 0:
@@ -234,7 +240,7 @@ class Myelin:
             return results
         # Claims Flow Editors -> Groupers -> Pricers
         # Create unique list of modules preserving order
-        unique_modules = []
+        unique_modules: list[Modules] = []
         for module in claim.modules:
             if module not in unique_modules:
                 unique_modules.append(module)
@@ -248,7 +254,9 @@ class Myelin:
             if self.ioce_client is None:
                 results.error = "IOCE client not initialized"
                 return results
-            results.ioce = self.ioce_client.process(claim,include_descriptions=True, **kwargs)
+            results.ioce = self.ioce_client.process(
+                claim, include_descriptions=True, **kwargs
+            )
         # Groupers
         if Modules.MSDRG in unique_modules:
             if self.drg_client is None:
@@ -272,8 +280,7 @@ class Myelin:
             if self.ipps_client is None:
                 results.error = "IPPS client not initialized"
                 return results
-            else:
-                results.ipps = self.ipps_client.process(claim, results.msdrg, **kwargs)
+            results.ipps = self.ipps_client.process(claim, results.msdrg, **kwargs)
         if Modules.OPPS in unique_modules:
             if self.opps_client is None:
                 results.error = "OPPS client not initialized"

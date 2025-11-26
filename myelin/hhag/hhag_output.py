@@ -1,17 +1,16 @@
-from typing import Optional
-
+import jpype
 from pydantic import BaseModel
 
 from myelin.helpers.utils import ReturnCode
 
 
 class HhagEdit(BaseModel):
-    edit_id: Optional[str] = None
-    severity: Optional[str] = None
-    description: Optional[str] = None
-    type: Optional[str] = None
+    edit_id: str | None = None
+    severity: str | None = None
+    description: str | None = None
+    type: str | None = None
 
-    def from_java(self, java_obj):
+    def from_java(self, java_obj: jpype.JObject) -> None:
         self.edit_id = str(java_obj.getId().getDescription())
         self.description = str(java_obj.getDescription())
         self.type = str(java_obj.getType().getName())
@@ -19,12 +18,12 @@ class HhagEdit(BaseModel):
 
 
 class HhagOutput(BaseModel):
-    hipps_code: Optional[str] = None
-    return_code: Optional[ReturnCode] = None
-    validity_flag: Optional[str] = None
-    edits: Optional[list[HhagEdit]] = None
+    hipps_code: str | None = None
+    return_code: ReturnCode | None = None
+    validity_flag: str | None = None
+    edits: list[HhagEdit] | None = None
 
-    def from_java(self, java_obj):
+    def from_java(self, java_obj: jpype.JObject) -> None:
         return_code = java_obj.getReturnCodeValue()
         if return_code is not None:
             self.return_code = ReturnCode()

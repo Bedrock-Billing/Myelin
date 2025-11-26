@@ -1,6 +1,6 @@
 import importlib.metadata
 import types
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 import pluggy
 
@@ -39,7 +39,7 @@ def apply_client_methods(client: Any) -> None:
         return
     pm = get_manager()
     results = pm.hook.client_methods(client=client)
-    merged: Dict[str, Callable[..., Any]] = {}
+    merged: dict[str, Callable[..., Any]] = {}
     for result in results:
         if not result:
             continue

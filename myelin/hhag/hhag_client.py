@@ -15,21 +15,33 @@ class HhagClient:
         self.load_hhag_grouper()
 
     def load_classes(self):
-        self.hhag_claim_class = jpype.JClass("gov.cms.hh.data.exchange.ClaimContainer")
-        self.hhag_dx_class = jpype.JClass("gov.cms.hh.data.exchange.DxContainer")
-        self.hhag_grouper_class = jpype.JClass("gov.cms.hh.grouper.GrouperFactory")
-        self.hhag_edit_collection_class = jpype.JClass(
+        self.hhag_claim_class: jpype.JClass = jpype.JClass(
+            "gov.cms.hh.data.exchange.ClaimContainer"
+        )
+        self.hhag_dx_class: jpype.JClass = jpype.JClass(
+            "gov.cms.hh.data.exchange.DxContainer"
+        )
+        self.hhag_grouper_class: jpype.JClass = jpype.JClass(
+            "gov.cms.hh.grouper.GrouperFactory"
+        )
+        self.hhag_edit_collection_class: jpype.JClass = jpype.JClass(
             "gov.cms.hh.logic.validation.EditCollection"
         )
-        self.hhag_edit_class = jpype.JClass("gov.cms.hh.logic.validation.Edit")
-        self.hhag_edit_type_enum = jpype.JClass(
+        self.hhag_edit_class: jpype.JClass = jpype.JClass(
+            "gov.cms.hh.logic.validation.Edit"
+        )
+        self.hhag_edit_type_enum: jpype.JClass = jpype.JClass(
             "gov.cms.hh.data.meta.enumer.EditType_EN"
         )
-        self.hhag_edit_severity_enum = jpype.JClass("java.util.logging.Level")
-        self.hhag_edit_id_enum = jpype.JClass("gov.cms.hh.data.meta.enumer.EditId_EN")
+        self.hhag_edit_severity_enum: jpype.JClass = jpype.JClass(
+            "java.util.logging.Level"
+        )
+        self.hhag_edit_id_enum: jpype.JClass = jpype.JClass(
+            "gov.cms.hh.data.meta.enumer.EditId_EN"
+        )
 
-    def load_hhag_grouper(self):
-        self.hhag_grouper_obj = self.hhag_grouper_class(True)
+    def load_hhag_grouper(self) -> None:
+        self.hhag_grouper_obj: jpype.JObject = self.hhag_grouper_class(True)
 
     def create_input_claim(self, claim: Claim) -> jpype.JObject:
         claim_obj = self.hhag_claim_class()
@@ -112,7 +124,7 @@ class HhagClient:
         claim_obj.setAmbulation("00")
 
     @handle_java_exceptions
-    def process(self, claim: Claim):
+    def process(self, claim: Claim) -> HhagOutput:
         """
         Process the claim through the HHAG system.
         Remember that the HHA Grouper requires OASIS assesment data to be entered..

@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 from logging import Logger, getLogger
-from typing import Optional
 
 import jpype
 from pydantic import BaseModel
@@ -22,17 +21,17 @@ from myelin.pricers.url_loader import UrlLoader
 
 class SnfOutput(BaseModel):
     claim_id: str = ""
-    return_code: Optional[ReturnCode] = None
-    calculation_version: Optional[str] = None
-    aids_indicator: Optional[str] = None
-    quality_reporting_indicator: Optional[str] = None
-    region_indicator: Optional[str] = None
-    vbp_payment_difference: Optional[float] = None
-    cbsa: Optional[str] = None
-    wage_index: Optional[float] = None
-    total_payment: Optional[float] = None
+    return_code: ReturnCode | None = None
+    calculation_version: str | None = None
+    aids_indicator: str | None = None
+    quality_reporting_indicator: str | None = None
+    region_indicator: str | None = None
+    vbp_payment_difference: float | None = None
+    cbsa: str | None = None
+    wage_index: float | None = None
+    total_payment: float | None = None
 
-    def from_java(self, java_response: jpype.JClass):
+    def from_java(self, java_response: jpype.JClass) -> None:
         self.calculation_version = str(java_response.getCalculationVersion())
         ret_code = java_response.getReturnCodeData()
         if ret_code is not None:
@@ -55,9 +54,9 @@ class SnfOutput(BaseModel):
 class SnfClient:
     def __init__(
         self,
-        jar_path: str,
-        db: Optional[Engine] = None,
-        logger: Optional[Logger] = None,
+        jar_path: str | None = None,
+        db: Engine | None = None,
+        logger: Logger | None = None,
     ):
         if not jpype.isJVMStarted():
             raise RuntimeError(
@@ -87,7 +86,7 @@ class SnfClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         self.snf_pricer_config_class = jpype.JClass(
             "gov.cms.fiss.pricers.snf.SnfPricerConfiguration",
             loader=self.url_loader.class_loader,
@@ -143,10 +142,12 @@ class SnfClient:
     def create_dispatch(self) -> jpype.JObject:
         return self.snf_pricer_dispatch_class(self.snf_config_obj)
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(
+        self, py_date: datetime | str | int | None
+    ) -> jpype.JObject:
         return py_date_to_java_date(self, py_date)
 
-    def pricer_setup(self):
+    def pricer_setup(self) -> None:
         self.snf_config_obj = self.snf_pricer_config_class()
         self.csv_ingest_obj = self.snf_csv_ingest_class()
         self.snf_config_obj.setCsvIngestionConfiguration(self.csv_ingest_obj)
@@ -159,7 +160,7 @@ class SnfClient:
                 "Failed to create SnfPricerDispatch object. Check your JAR file and classpath."
             )
 
-    def create_input_claim(self, claim: Claim, **kwargs) -> jpype.JObject:
+    def create_input_claim(self, claim: Claim, **kwargs: object) -> jpype.JObject:
         if self.db is None:
             raise ValueError("Database connection is required for SnfClient.")
         claim_obj = self.snf_pricer_claim_data_class()
@@ -244,7 +245,7 @@ class SnfClient:
         raise ValueError("Dispatch object does not have a process method.")
 
     @handle_java_exceptions
-    def process(self, claim: Claim, **kwargs):
+    def process(self, claim: Claim, **kwargs: object) -> SnfOutput:
         """
         Process the claim and return the SNF pricing response.
 

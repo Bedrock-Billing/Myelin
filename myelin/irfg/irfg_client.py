@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import jpype
 
 from myelin.helpers.utils import (
@@ -12,7 +14,7 @@ from myelin.plugins import apply_client_methods, run_client_load_classes
 
 from .irfg_output import IrfgOutput
 
-ASSESSMENT_TAGS = {
+ASSESSMENT_TAGS: dict[str, str] = {
     "eating_self_admsn_cd": "GG0130A1",
     "oral_hygne_admsn_cd": "GG0130B1",
     "toileting_hygne_admsn_cd": "GG0130C1",
@@ -52,7 +54,7 @@ class IrfgClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         """
         Load the necessary Java classes for the DRG client.
         """
@@ -70,7 +72,7 @@ class IrfgClient:
             "com.mmm.his.cer.foundation.model.DiagnosisCode"
         )
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(self, py_date: datetime | None) -> jpype.JObject | None:
         """
         Convert a Python date object to a Java LocalDate object.
         """
@@ -78,7 +80,7 @@ class IrfgClient:
             return None
         return py_date_to_java_date(self, py_date)
 
-    def create_assessments(self, pai: IrfPai):
+    def create_assessments(self, pai: IrfPai) -> jpype.JObject | None:
         """
         Create a list of Assessment Java objects from the given IrfPai object.
 
@@ -95,16 +97,16 @@ class IrfgClient:
                 assessment_list.add(assessment)
         return assessment_list
 
-    def create_claim_input(self, claim: Claim):
+    def create_claim_input(self, claim: Claim) -> jpype.JObject | None:
         """
         Create a new IrfClaim Java object.
         """
-        if claim.irf_pai is None:
+        if not claim.irf_pai:
             raise ValueError("IRF-PAI assessment data is required for IRF claims")
         claim_obj = self.irf_claim_class()
         claim_obj.setAssessmentSystem(claim.irf_pai.assessment_system)
         claim_obj.setTransactionType(claim.irf_pai.transaction_type)
-        if claim.patient is None:
+        if not claim.patient:
             raise ValueError("Patient information is required for IRF claims")
         claim_obj.setBirthDate(self.py_date_to_java_date(claim.patient.date_of_birth))
         claim_obj.setAdmissionDate(self.py_date_to_java_date(claim.admit_date))
@@ -112,17 +114,17 @@ class IrfgClient:
         claim_obj.setDischargeDate(self.py_date_to_java_date(claim.thru_date))
         dx_idx = 0
         # Do not strip decimal points out of Dx Codes, CMS's CMG Grouper validates the pattern of ICD-10 codes
-        if claim.principal_dx is not None:
+        if claim.principal_dx:
             claim_obj.addCode(self.dx_code_class(claim.principal_dx.code.ljust(8, "^")))
             dx_idx += 1
         while dx_idx < len(claim.secondary_dxs) and dx_idx < 25:
-            if claim.secondary_dxs[dx_idx] is not None:
+            if claim.secondary_dxs[dx_idx]:
                 claim_obj.addCode(
                     self.dx_code_class(claim.secondary_dxs[dx_idx].code.ljust(8, "^"))
                 )
             dx_idx += 1
         assessments = self.create_assessments(claim.irf_pai)
-        if assessments is not None:
+        if assessments:
             claim_obj.setAssessments(assessments)
         return claim_obj
 
@@ -131,10 +133,10 @@ class IrfgClient:
         """
         Process the given claim and return the DRG output.
         """
-        if claim is None:
+        if not claim:
             raise ValueError("Claim cannot be None")
         claim_input = self.create_claim_input(claim)
-        if claim_input is None:
+        if not claim_input:
             raise RuntimeError("Failed to create claim input for IRF Grouper")
         grouper = self.cmg_grouper_class()
         try:

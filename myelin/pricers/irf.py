@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 from logging import Logger, getLogger
-from typing import Optional
 
 import jpype
 from pydantic import BaseModel
@@ -23,41 +22,41 @@ from myelin.pricers.url_loader import UrlLoader
 
 class IrfOutput(BaseModel):
     claim_id: str = ""
-    return_code: Optional[ReturnCode] = None
-    calculation_version: Optional[str] = None
-    total_payment: Optional[float] = None
-    average_length_of_stay: Optional[float] = None
-    budget_neutrality_conversion_amt: Optional[float] = None
-    relative_weight: Optional[float] = None
-    charge_outlier_threshold_amt: Optional[float] = None
-    cost_outlier_threshold_id: Optional[str] = None
-    facility_costs: Optional[float] = None
-    facility_rate_percent: Optional[float] = None
-    facility_specific_payment: Optional[float] = None
-    facility_specific_rate_pre_blended: Optional[float] = None
-    federal_payment_amt: Optional[float] = None
-    federal_penalty_amt: Optional[float] = None
-    federal_rate_percent: Optional[float] = None
-    length_of_stay: Optional[int] = None
-    lifetime_reserve_days_used: Optional[int] = None
-    low_income_payment: Optional[float] = None
-    low_income_payment_penalty_amt: Optional[float] = None
-    low_income_payment_percent: Optional[float] = None
-    national_labor_percent: Optional[float] = None
-    national_nonlabor_percent: Optional[float] = None
-    national_threshold_adjustment_amt: Optional[float] = None
-    outlier_payment: Optional[float] = None
-    outlier_penalty_amt: Optional[float] = None
-    outlier_threshold: Optional[float] = None
-    price_case_mix_group: Optional[str] = None
-    regular_days_used: Optional[int] = None
-    rural_adjustment_percent: Optional[float] = None
-    standard_payment_amt: Optional[float] = None
-    submitted_case_mix_group: Optional[str] = None
-    teaching_payment: Optional[float] = None
-    teaching_payment_penalty_amt: Optional[float] = None
-    total_penalty_amt: Optional[float] = None
-    transfer_percent: Optional[float] = None
+    return_code: ReturnCode | None = None
+    calculation_version: str | None = None
+    total_payment: float | None = None
+    average_length_of_stay: float | None = None
+    budget_neutrality_conversion_amt: float | None = None
+    relative_weight: float | None = None
+    charge_outlier_threshold_amt: float | None = None
+    cost_outlier_threshold_id: str | None = None
+    facility_costs: float | None = None
+    facility_rate_percent: float | None = None
+    facility_specific_payment: float | None = None
+    facility_specific_rate_pre_blended: float | None = None
+    federal_payment_amt: float | None = None
+    federal_penalty_amt: float | None = None
+    federal_rate_percent: float | None = None
+    length_of_stay: int | None = None
+    lifetime_reserve_days_used: int | None = None
+    low_income_payment: float | None = None
+    low_income_payment_penalty_amt: float | None = None
+    low_income_payment_percent: float | None = None
+    national_labor_percent: float | None = None
+    national_nonlabor_percent: float | None = None
+    national_threshold_adjustment_amt: float | None = None
+    outlier_payment: float | None = None
+    outlier_penalty_amt: float | None = None
+    outlier_threshold: float | None = None
+    price_case_mix_group: str | None = None
+    regular_days_used: int | None = None
+    rural_adjustment_percent: float | None = None
+    standard_payment_amt: float | None = None
+    submitted_case_mix_group: str | None = None
+    teaching_payment: float | None = None
+    teaching_payment_penalty_amt: float | None = None
+    total_penalty_amt: float | None = None
+    transfer_percent: float | None = None
 
     def from_java(self, java_obj: jpype.JObject) -> None:
         rtn_code = java_obj.getReturnCodeData()
@@ -145,9 +144,9 @@ class IrfOutput(BaseModel):
 class IrfClient:
     def __init__(
         self,
-        jar_path: str,
-        db: Optional[Engine] = None,
-        logger: Optional[Logger] = None,
+        jar_path: str | None = None,
+        db: Engine | None = None,
+        logger: Logger | None = None,
     ):
         if not jpype.isJVMStarted():
             raise RuntimeError(
@@ -177,7 +176,7 @@ class IrfClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         self.irf_pricer_config_class = jpype.JClass(
             "gov.cms.fiss.pricers.irf.IrfPricerConfiguration",
             loader=self.url_loader.class_loader,
@@ -233,7 +232,9 @@ class IrfClient:
     def create_dispatch(self) -> jpype.JObject:
         return self.irf_pricer_dispatch_class(self.irf_config_obj)
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(
+        self, py_date: datetime | str | int | None
+    ) -> jpype.JObject:
         return py_date_to_java_date(self, py_date)
 
     def pricer_setup(self):
@@ -250,7 +251,7 @@ class IrfClient:
             )
 
     def create_input_claim(
-        self, claim: Claim, irfg: Optional[IrfgOutput] = None, **kwargs
+        self, claim: Claim, irfg: IrfgOutput | None = None, **kwargs: object
     ) -> jpype.JObject:
         if self.db is None:
             raise ValueError("Database connection is required for IrfClient.")
@@ -329,7 +330,7 @@ class IrfClient:
 
     @handle_java_exceptions
     def process(
-        self, claim: Claim, irfg: Optional[IrfgOutput] = None, **kwargs
+        self, claim: Claim, irfg: IrfgOutput | None = None, **kwargs: object
     ) -> IrfOutput:
         """
         Process the claim and return the IRF pricing response.

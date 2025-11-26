@@ -3,7 +3,6 @@ import shutil
 from datetime import datetime
 from logging import Logger, getLogger
 from threading import current_thread
-from typing import Optional
 
 import jpype
 from pydantic import BaseModel
@@ -25,38 +24,38 @@ from myelin.pricers.url_loader import UrlLoader
 
 class LtchOutput(BaseModel):
     claim_id: str = ""
-    calculation_version: Optional[str] = None
-    return_code: Optional[ReturnCode] = None
-    total_payment: Optional[float] = None
-    final_cbsa: Optional[str] = None
-    adjusted_payment: Optional[float] = None
-    average_length_of_stay: Optional[float] = None
-    blend_year: Optional[int] = None
-    budget_neutrality_rate: Optional[float] = None
-    change_of_therapy_indicator: Optional[str] = None
-    charge_threshold_amount: Optional[float] = None
-    cost_of_living_adjustment_percent: Optional[float] = None
-    discharge_payment_percent_amount: Optional[float] = None
-    drg_relative_weight: Optional[float] = None
-    facility_costs: Optional[float] = None
-    facility_specific_rate: Optional[float] = None
-    federal_payment: Optional[float] = None
-    federal_rate_percent: Optional[float] = None
-    inpatient_threshold: Optional[float] = None
-    length_of_stay: Optional[int] = None
-    lifetime_reserve_days_used: Optional[int] = None
-    national_labor_percent: Optional[float] = None
-    national_non_labor_percent: Optional[float] = None
-    outlier_payment: Optional[float] = None
-    outlier_threshold_amount: Optional[float] = None
-    regular_days_used: Optional[int] = None
-    site_neutral_cost_payment: Optional[float] = None
-    site_neutral_ipps_payment: Optional[float] = None
-    standard_full_payment: Optional[float] = None
-    standard_short_stay_outlier_payment: Optional[float] = None
-    submitted_diagnosis_related_group: Optional[str] = None
+    calculation_version: str | None = None
+    return_code: ReturnCode | None = None
+    total_payment: float | None = None
+    final_cbsa: str | None = None
+    adjusted_payment: float | None = None
+    average_length_of_stay: float | None = None
+    blend_year: int | None = None
+    budget_neutrality_rate: float | None = None
+    change_of_therapy_indicator: str | None = None
+    charge_threshold_amount: float | None = None
+    cost_of_living_adjustment_percent: float | None = None
+    discharge_payment_percent_amount: float | None = None
+    drg_relative_weight: float | None = None
+    facility_costs: float | None = None
+    facility_specific_rate: float | None = None
+    federal_payment: float | None = None
+    federal_rate_percent: float | None = None
+    inpatient_threshold: float | None = None
+    length_of_stay: int | None = None
+    lifetime_reserve_days_used: int | None = None
+    national_labor_percent: float | None = None
+    national_non_labor_percent: float | None = None
+    outlier_payment: float | None = None
+    outlier_threshold_amount: float | None = None
+    regular_days_used: int | None = None
+    site_neutral_cost_payment: float | None = None
+    site_neutral_ipps_payment: float | None = None
+    standard_full_payment: float | None = None
+    standard_short_stay_outlier_payment: float | None = None
+    submitted_diagnosis_related_group: str | None = None
 
-    def from_java(self, java_obj):
+    def from_java(self, java_obj: jpype.JObject) -> None:
         self.return_code = ReturnCode()
         self.return_code.from_java(java_obj.getReturnCodeData())
         self.calculation_version = str(java_obj.getCalculationVersion())
@@ -132,9 +131,9 @@ class LtchOutput(BaseModel):
 class LtchClient:
     def __init__(
         self,
-        jar_path=None,
-        db: Optional[Engine] = None,
-        logger: Optional[Logger] = None,
+        jar_path: str | None = None,
+        db: Engine | None = None,
+        logger: Logger | None = None,
     ):
         if not jpype.isJVMStarted():
             raise RuntimeError(
@@ -166,7 +165,7 @@ class LtchClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         self.ltc_csv_ingest_class = jpype.JClass(
             "gov.cms.fiss.pricers.common.csv.CsvIngestionConfiguration",
             loader=self.url_loader.class_loader,
@@ -288,7 +287,7 @@ class LtchClient:
             )
         ins.close()
 
-    def pricer_setup(self):
+    def pricer_setup(self) -> None:
         self.ltc_config_obj = self.ltc_price_config()
         self.csv_ingest_obj = self.ltc_csv_ingest_class()
         self.ltc_config_obj.setCsvIngestionConfiguration(self.csv_ingest_obj)
@@ -303,11 +302,13 @@ class LtchClient:
                 "Failed to create LtcPricerDispatch object. Check your JAR file and classpath."
             )
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(
+        self, py_date: datetime | str | int | None
+    ) -> jpype.JObject:
         return py_date_to_java_date(self, py_date)
 
     def create_input_claim(
-        self, claim: Claim, drg_output: Optional[MsdrgOutput] = None, **kwargs
+        self, claim: Claim, drg_output: MsdrgOutput | None = None, **kwargs: object
     ) -> jpype.JObject:
         if self.db is None:
             raise ValueError("Database connection is required for LtchClient.")
@@ -398,7 +399,7 @@ class LtchClient:
 
     @handle_java_exceptions
     def process(
-        self, claim: Claim, drg_output: Optional[MsdrgOutput] = None, **kwargs
+        self, claim: Claim, drg_output: MsdrgOutput | None = None, **kwargs: object
     ) -> LtchOutput:
         """
         Processes the python claim object through the CMS LTCH Java Pricer.

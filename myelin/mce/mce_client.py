@@ -16,6 +16,7 @@ class MceClient:
                 "JVM is not started. Please start the JVM before using MceClient."
             )
         self.load_enums()
+        self.load_classes()
         try:
             run_client_load_classes(self)
         except Exception:
@@ -25,12 +26,12 @@ class MceClient:
         except Exception:
             pass
 
-    def load_enums(self):
+    def load_enums(self) -> None:
         self.icd_vers = jpype.JClass("gov.cms.editor.mce.component.edit.Const")
         self.edit_enum = jpype.JClass("gov.cms.editor.mce.model.enums.Edit")
         self.edit_type_enum = jpype.JClass("gov.cms.editor.mce.model.enums.EditType")
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         self.mce_record = jpype.JClass("gov.cms.editor.mce.transfer.MceRecord")
         self.mce_output = jpype.JClass("gov.cms.editor.mce.transfer.MceOutput")
         self.mce_dx_class = jpype.JClass("gov.cms.editor.mce.model.MceDiagnosisCode")
@@ -40,7 +41,7 @@ class MceClient:
         self.mce_component = self.mce_component_class()
         self.java_int = jpype.JClass("java.lang.Integer")
 
-    def calculate_los(self, claim: Claim):
+    def calculate_los(self, claim: Claim) -> int:
         if isinstance(claim.from_date, str):
             from_date = datetime.strptime(claim.from_date, "%Y-%m-%d")
         elif isinstance(claim.from_date, datetime):
@@ -55,10 +56,7 @@ class MceClient:
             raise ValueError("thru_date must be a string or datetime object")
         return (thru_date - from_date).days + 1 if thru_date >= from_date else 1
 
-    def create_input(self, claim: Claim):
-        if not hasattr(self, "mce_record"):
-            self.load_classes()
-
+    def create_input(self, claim: Claim) -> jpype.JObject | None:
         mce_record = self.mce_record.builder()
         mce_record.withIcdVersion(self.icd_vers.ICD_10)
         if str(claim.patient_status).isnumeric():
@@ -74,7 +72,7 @@ class MceClient:
         else:
             mce_record.withLengthOfStay(self.java_int(self.calculate_los(claim)))
 
-        if claim.admit_dx is not None:
+        if claim.admit_dx:
             mce_record.withAdmitDiagnosis(
                 self.mce_dx_class(claim.admit_dx.code.replace(".", ""))
             )
@@ -90,7 +88,7 @@ class MceClient:
         else:
             raise ValueError("thru_date must be a string or datetime object")
         mce_record = mce_record.build()
-        if claim.principal_dx is not None:
+        if claim.principal_dx:
             mce_record.addCode(
                 self.mce_dx_class(claim.principal_dx.code.replace(".", ""))
             )
@@ -101,8 +99,10 @@ class MceClient:
         return mce_record
 
     @handle_java_exceptions
-    def process(self, claim: Claim):
+    def process(self, claim: Claim) -> MceOutput:
         mce_input = self.create_input(claim)
+        if not mce_input:
+            raise RuntimeError("Failed to create MCE input")
         self.mce_component.process(mce_input)
         java_output = mce_input.getMceOutput()
         mce_output = MceOutput()

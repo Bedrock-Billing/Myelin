@@ -3,7 +3,6 @@ import shutil
 from datetime import datetime
 from logging import Logger, getLogger
 from threading import current_thread
-from typing import Optional
 
 import jpype
 from pydantic import BaseModel
@@ -32,26 +31,26 @@ ECTCodes = {
 
 
 class IpfAdditionalVariables(BaseModel):
-    adjusted_per_diem_amount: Optional[float] = None
-    base_labor_amount: Optional[float] = None
-    base_non_labor_amount: Optional[float] = None
-    budget_rate_amount: Optional[float] = None
-    electro_convulsive_therapy_payment: Optional[float] = None
-    factor_payment: Optional[float] = None
-    outlier_adjusted_cost: Optional[float] = None
-    federal_payment: Optional[float] = None
-    outlier_base_labor_amount: Optional[float] = None
-    outlier_base_non_labor_amount: Optional[float] = None
-    outlier_cost: Optional[float] = None
-    outlier_payment: Optional[float] = None
-    outlier_per_diem_amount: Optional[float] = None
-    outlier_threshold_adjusted_amount: Optional[float] = None
-    outlier_threshold_amount: Optional[float] = None
-    stop_loss_amount: Optional[float] = None
-    teaching_payment: Optional[float] = None
-    wage_adjusted_amount: Optional[float] = None
+    adjusted_per_diem_amount: float | None = None
+    base_labor_amount: float | None = None
+    base_non_labor_amount: float | None = None
+    budget_rate_amount: float | None = None
+    electro_convulsive_therapy_payment: float | None = None
+    factor_payment: float | None = None
+    outlier_adjusted_cost: float | None = None
+    federal_payment: float | None = None
+    outlier_base_labor_amount: float | None = None
+    outlier_base_non_labor_amount: float | None = None
+    outlier_cost: float | None = None
+    outlier_payment: float | None = None
+    outlier_per_diem_amount: float | None = None
+    outlier_threshold_adjusted_amount: float | None = None
+    outlier_threshold_amount: float | None = None
+    stop_loss_amount: float | None = None
+    teaching_payment: float | None = None
+    wage_adjusted_amount: float | None = None
 
-    def from_java(self, java_obj):
+    def from_java(self, java_obj: jpype.JObject) -> None:
         if java_obj is None:
             return
         self.adjusted_per_diem_amount = float_or_none(
@@ -88,24 +87,24 @@ class IpfAdditionalVariables(BaseModel):
 
 class IpfOutput(BaseModel):
     claim_id: str = ""
-    calculation_version: Optional[str] = None
-    return_code: Optional[ReturnCode] = None
-    total_payment: Optional[float] = None
-    final_cbsa: Optional[str] = None
-    wage_index: Optional[float] = None
-    age_adjustment_percent: Optional[float] = None
-    comorbidity_factor: Optional[float] = None
-    cost_of_living_adjustment_percent: Optional[float] = None
-    cost_to_charge_ratio: Optional[float] = None
-    drg_factor: Optional[float] = None
-    emergency_adjustment_percent: Optional[float] = None
-    national_labor_percent: Optional[float] = None
-    national_non_labor_percent: Optional[float] = None
-    rural_adjustment_percent: Optional[float] = None
-    teach_adjustment_percent: Optional[float] = None
-    additional_variables: Optional[IpfAdditionalVariables] = None
+    calculation_version: str | None = None
+    return_code: ReturnCode | None = None
+    total_payment: float | None = None
+    final_cbsa: str | None = None
+    wage_index: float | None = None
+    age_adjustment_percent: float | None = None
+    comorbidity_factor: float | None = None
+    cost_of_living_adjustment_percent: float | None = None
+    cost_to_charge_ratio: float | None = None
+    drg_factor: float | None = None
+    emergency_adjustment_percent: float | None = None
+    national_labor_percent: float | None = None
+    national_non_labor_percent: float | None = None
+    rural_adjustment_percent: float | None = None
+    teach_adjustment_percent: float | None = None
+    additional_variables: IpfAdditionalVariables | None = None
 
-    def from_java(self, java_obj):
+    def from_java(self, java_obj: jpype.JObject) -> None:
         self.return_code = ReturnCode()
         self.return_code.from_java(java_obj.getReturnCodeData())
         self.calculation_version = str(java_obj.getCalculationVersion())
@@ -152,9 +151,9 @@ class IpfOutput(BaseModel):
 class IpfClient:
     def __init__(
         self,
-        jar_path=None,
-        db: Optional[Engine] = None,
-        logger: Optional[Logger] = None,
+        jar_path: str | None = None,
+        db: Engine | None = None,
+        logger: Logger | None = None,
     ):
         if not jpype.isJVMStarted():
             raise RuntimeError(
@@ -184,7 +183,7 @@ class IpfClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         self.ipf_csv_ingest_class = jpype.JClass(
             "gov.cms.fiss.pricers.common.csv.CsvIngestionConfiguration",
             loader=self.url_loader.class_loader,
@@ -306,7 +305,7 @@ class IpfClient:
             )
         ins.close()
 
-    def pricer_setup(self):
+    def pricer_setup(self) -> None:
         self.ipf_config_obj = self.ipf_price_config()
         self.csv_ingest_obj = self.ipf_csv_ingest_class()
         self.ipf_config_obj.setCsvIngestionConfiguration(self.csv_ingest_obj)
@@ -321,7 +320,9 @@ class IpfClient:
                 "Failed to create IpfPricerDispatch object. Check your JAR file and classpath."
             )
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(
+        self, py_date: datetime | str | int | None
+    ) -> jpype.JObject:
         return py_date_to_java_date(self, py_date)
 
     def hasOutlierOccurrence(self, claim: Claim) -> bool:
@@ -374,7 +375,7 @@ class IpfClient:
         return ect_units
 
     def create_input_claim(
-        self, claim: Claim, drg_output: Optional[MsdrgOutput] = None, **kwargs
+        self, claim: Claim, drg_output: MsdrgOutput | None = None, **kwargs: object
     ) -> jpype.JObject:
         if self.db is None:
             raise ValueError("Database connection is required for IpfClient.")
@@ -456,14 +457,14 @@ class IpfClient:
 
     def process_claim(
         self, claim: Claim, pricing_request: jpype.JObject
-    ) -> jpype.JObject:
+    ) -> jpype.JObject | None:
         if hasattr(self.dispatch_obj, "process"):
             return self.dispatch_obj.process(pricing_request)
         raise ValueError("Dispatch object does not have a process method.")
 
     @handle_java_exceptions
     def process(
-        self, claim: Claim, drg_output: Optional[MsdrgOutput] = None, **kwargs
+        self, claim: Claim, drg_output: MsdrgOutput | None = None, **kwargs: object
     ) -> IpfOutput:
         """
         Processes the python claim object through the CMS IPF Java Pricer.

@@ -1,6 +1,6 @@
 import csv
 import os
-from typing import Any, Dict, Iterable, List, Literal
+from typing import Any, Iterable, Literal
 
 import requests
 import sqlalchemy
@@ -283,14 +283,14 @@ class IPSFDatabase:
                     fh.write(chunk)
         return filename
 
-    def _row_iter(self, csv_path: str) -> Iterable[Dict[str, Any]]:
+    def _row_iter(self, csv_path: str) -> Iterable[dict[str, Any]]:
         with open(csv_path, "r", newline="") as fh:
             reader = csv.reader(fh)
             next(reader, None)  # Skip header
             for row in reader:
                 if not row or len(row) < len(DATATYPES):
                     continue
-                rec: Dict[str, Any] = {}
+                rec: dict[str, Any] = {}
                 for name, meta in DATATYPES.items():
                     pos = int(meta["position"])
                     val = row[pos] if pos < len(row) else None
@@ -325,7 +325,7 @@ class IPSFDatabase:
             if truncate:
                 sess.query(IPSF).delete()
                 sess.commit()
-            batch: List[Dict[str, Any]] = []
+            batch: list[dict[str, Any]] = []
             for rec in self._row_iter(csv_path):
                 batch.append(rec)
                 if len(batch) >= batch_size:
@@ -456,7 +456,11 @@ class IPSFProvider(BaseModel):
             raise RuntimeError("Error applying client methods") from e
 
     def from_db(
-        self, engine: sqlalchemy.Engine, provider: Provider, date_int: int, **kwargs
+        self,
+        engine: sqlalchemy.Engine,
+        provider: Provider,
+        date_int: int,
+        **kwargs: object,
     ):
         local_session = False
         eng_id = id(engine)
@@ -506,7 +510,11 @@ class IPSFProvider(BaseModel):
         return self
 
     def from_sqlite(
-        self, conn: sqlalchemy.Engine, provider: Provider, date_int: int, **kwargs
+        self,
+        conn: sqlalchemy.Engine,
+        provider: Provider,
+        date_int: int,
+        **kwargs: object,
     ):  # backward compat
         return self.from_db(conn, provider, date_int, **kwargs)
 

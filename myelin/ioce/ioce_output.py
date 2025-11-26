@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import List, Optional
 
+import jpype
 from pydantic import BaseModel, Field
+from typing_extensions import override
 
 
 class ReturnCode(BaseModel):
@@ -65,31 +66,33 @@ class IoceProcessingInformation(BaseModel):
     debug_flag: str = ""
     comment_data: str = ""
 
-    def from_java(self, java_obj):
-        if java_obj is not None:
-            self.claim_id = str(java_obj.getClaimId()) if java_obj.getClaimId() else ""
-            self.return_code.code = (
-                java_obj.getReturnCode() if java_obj.getReturnCode() else 0
-            )
-            self.lines_processed = (
-                java_obj.getLinesProcessed() if java_obj.getLinesProcessed() else 0
-            )
-            self.internal_version = (
-                java_obj.getInternalVersion()
-                if hasattr(java_obj, "getInternalVersion")
-                else 0
-            )
-            self.version = str(java_obj.getVersion()) if java_obj.getVersion() else ""
-            self.time_started = (
-                java_obj.getTimeStarted() if java_obj.getTimeStarted() else 0
-            )
-            self.time_ended = java_obj.getTimeEnded() if java_obj.getTimeEnded() else 0
-            self.debug_flag = (
-                str(java_obj.getDebugFlag()) if java_obj.getDebugFlag() else ""
-            )
-            self.comment_data = (
-                str(java_obj.getCommentData()) if java_obj.getCommentData() else ""
-            )
+    def from_java(self, java_obj: jpype.JObject | None) -> "IoceProcessingInformation":
+        if not java_obj:
+            return self
+
+        self.claim_id = str(java_obj.getClaimId()) if java_obj.getClaimId() else ""
+        self.return_code.code = (
+            java_obj.getReturnCode() if java_obj.getReturnCode() else 0
+        )
+        self.lines_processed = (
+            java_obj.getLinesProcessed() if java_obj.getLinesProcessed() else 0
+        )
+        self.internal_version = (
+            java_obj.getInternalVersion()
+            if hasattr(java_obj, "getInternalVersion")
+            else 0
+        )
+        self.version = str(java_obj.getVersion()) if java_obj.getVersion() else ""
+        self.time_started = (
+            java_obj.getTimeStarted() if java_obj.getTimeStarted() else 0
+        )
+        self.time_ended = java_obj.getTimeEnded() if java_obj.getTimeEnded() else 0
+        self.debug_flag = (
+            str(java_obj.getDebugFlag()) if java_obj.getDebugFlag() else ""
+        )
+        self.comment_data = (
+            str(java_obj.getCommentData()) if java_obj.getCommentData() else ""
+        )
         return self
 
 
@@ -99,23 +102,24 @@ class IoceOutputDiagnosisCode(BaseModel):
     diagnosis: str = ""
     description: str = ""
     present_on_admission: str = ""
-    edit_list: List[IoceOutputEdit] = Field(default_factory=list)
+    edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
-    def from_java(self, java_obj):
-        if java_obj is not None:
-            self.diagnosis = (
-                str(java_obj.getDiagnosis()) if java_obj.getDiagnosis() else ""
-            )
-            self.present_on_admission = (
-                str(java_obj.getPresentOnAdmission())
-                if java_obj.getPresentOnAdmission()
-                else ""
-            )
+    def from_java(self, java_obj: jpype.JObject | None) -> "IoceOutputDiagnosisCode":
+        if not java_obj:
+            return self
 
-            self.edit_list = []
-            if hasattr(java_obj, "getEditList") and java_obj.getEditList():
-                for edit in java_obj.getEditList():
-                    self.edit_list.append(IoceOutputEdit(edit=str(edit)))
+        self.diagnosis = str(java_obj.getDiagnosis()) if java_obj.getDiagnosis() else ""
+        self.present_on_admission = (
+            str(java_obj.getPresentOnAdmission())
+            if java_obj.getPresentOnAdmission()
+            else ""
+        )
+
+        self.edit_list = []
+        if hasattr(java_obj, "getEditList") and java_obj.getEditList():
+            for edit in java_obj.getEditList():
+                self.edit_list.append(IoceOutputEdit(edit=str(edit)))
+
         return self
 
 
@@ -123,18 +127,20 @@ class IoceOutputHcpcsModifier(BaseModel):
     """Output for HCPCS modifiers with associated edits"""
 
     hcpcs_modifier: str = ""
-    edit_list: List[IoceOutputEdit] = Field(default_factory=list)
+    edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
-    def from_java(self, java_obj):
-        if java_obj is not None:
-            self.hcpcs_modifier = (
-                str(java_obj.getHcpcsModifier()) if java_obj.getHcpcsModifier() else ""
-            )
+    def from_java(self, java_obj: jpype.JObject | None) -> "IoceOutputHcpcsModifier":
+        if not java_obj:
+            return self
 
-            self.edit_list = []
-            if hasattr(java_obj, "getEditList") and java_obj.getEditList():
-                for edit in java_obj.getEditList():
-                    self.edit_list.append(IoceOutputEdit(edit=str(edit)))
+        self.hcpcs_modifier = (
+            str(java_obj.getHcpcsModifier()) if java_obj.getHcpcsModifier() else ""
+        )
+
+        self.edit_list = []
+        if hasattr(java_obj, "getEditList") and java_obj.getEditList():
+            for edit in java_obj.getEditList():
+                self.edit_list.append(IoceOutputEdit(edit=str(edit)))
         return self
 
 
@@ -144,22 +150,24 @@ class IoceOutputValueCode(BaseModel):
     code: str = ""
     value: str = ""
 
-    def from_java(self, java_obj):
-        if java_obj is not None:
-            self.code = str(java_obj.getCode()) if java_obj.getCode() else ""
-            self.value = str(java_obj.getValue()) if java_obj.getValue() else ""
+    def from_java(self, java_obj: jpype.JObject | None) -> "IoceOutputValueCode":
+        if not java_obj:
+            return self
+
+        self.code = str(java_obj.getCode()) if java_obj.getCode() else ""
+        self.value = str(java_obj.getValue()) if java_obj.getValue() else ""
         return self
 
 
 class IoceOutputLineItem(BaseModel):
     """Output for line items with all OPPS processing results"""
 
-    service_date: Optional[datetime] = None
+    service_date: datetime | None = None
     revenue_code: str = ""
     hcpcs: str = ""
     hcpcs_description: str = ""
-    units_input: Optional[int] = None
-    charge: Optional[float] = None
+    units_input: int | None = None
+    charge: float | None = None
     action_flag_input: str = ""
 
     action_flag_output: str = ""
@@ -169,162 +177,153 @@ class IoceOutputLineItem(BaseModel):
     hcpcs_apc_description: str = ""
     payment_apc: str = ""
     payment_apc_description: str = ""
-    units_output: Optional[int] = None
+    units_output: int | None = None
     status_indicator: str = ""
     status_indicator_description: str = ""
     payment_indicator: str = ""
     packaging_flag: IoceOutputFlag = Field(default_factory=IoceOutputFlag)
     payment_adjustment_flag01: IoceOutputFlag = Field(default_factory=IoceOutputFlag)
     payment_adjustment_flag02: IoceOutputFlag = Field(default_factory=IoceOutputFlag)
-    discounting_formula: Optional[int] = None
+    discounting_formula: int | None = None
     composite_adjustment_flag: str = ""
 
-    hcpcs_modifier_input_list: List[IoceOutputHcpcsModifier] = Field(
+    hcpcs_modifier_input_list: list[IoceOutputHcpcsModifier] = Field(
         default_factory=list
     )
-    hcpcs_modifier_output_list: List[IoceOutputHcpcsModifier] = Field(
+    hcpcs_modifier_output_list: list[IoceOutputHcpcsModifier] = Field(
         default_factory=list
     )
 
-    hcpcs_edit_list: List[IoceOutputEdit] = Field(default_factory=list)
-    revenue_edit_list: List[IoceOutputEdit] = Field(default_factory=list)
-    service_date_edit_list: List[IoceOutputEdit] = Field(default_factory=list)
+    hcpcs_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
+    revenue_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
+    service_date_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
-    def from_java(self, java_obj):
-        if java_obj is not None:
-            self.service_date = (
-                datestr_to_datetime(str(java_obj.getServiceDate()))
-                if java_obj.getServiceDate()
-                else None
-            )
-            self.revenue_code = (
-                str(java_obj.getRevenueCode()) if java_obj.getRevenueCode() else ""
-            )
-            self.hcpcs = str(java_obj.getHcpcs()) if java_obj.getHcpcs() else ""
-            self.units_input = java_string_to_int(
-                str(java_obj.getUnitsInput()) if java_obj.getUnitsInput() else ""
-            )
-            self.charge = java_string_to_float(
-                str(java_obj.getCharge()) if java_obj.getCharge() else ""
-            )
-            self.action_flag_input = (
-                str(java_obj.getActionFlagInput())
-                if java_obj.getActionFlagInput()
-                else ""
-            )
+    def from_java(self, java_obj: jpype.JObject | None) -> "IoceOutputLineItem":
+        if not java_obj:
+            return self
 
-            self.action_flag_output = (
-                str(java_obj.getActionFlagOutput())
-                if java_obj.getActionFlagOutput()
-                else ""
-            )
-            self.rejection_denial_flag = (
-                str(java_obj.getRejectionDenialFlag())
-                if java_obj.getRejectionDenialFlag()
-                else ""
-            )
-            self.payment_method_flag = (
-                str(java_obj.getPaymentMethodFlag())
-                if java_obj.getPaymentMethodFlag()
-                else ""
-            )
-            self.hcpcs_apc = (
-                str(java_obj.getHcpcsApc()) if java_obj.getHcpcsApc() else ""
-            )
-            self.payment_apc = (
-                str(java_obj.getPaymentApc()) if java_obj.getPaymentApc() else ""
-            )
-            self.units_output = java_string_to_int(
-                str(java_obj.getUnitsOutput()) if java_obj.getUnitsOutput() else ""
-            )
-            self.status_indicator = (
-                str(java_obj.getStatusIndicator())
-                if java_obj.getStatusIndicator()
-                else ""
-            )
-            self.payment_indicator = (
-                str(java_obj.getPaymentIndicator())
-                if java_obj.getPaymentIndicator()
-                else ""
-            )
-            self.discounting_formula = java_string_to_int(
-                str(java_obj.getDiscountingFormula())
-                if java_obj.getDiscountingFormula()
-                else ""
-            )
-            self.composite_adjustment_flag = (
-                str(java_obj.getCompositeAdjustmentFlag())
-                if java_obj.getCompositeAdjustmentFlag()
-                else ""
-            )
+        self.service_date = (
+            datestr_to_datetime(str(java_obj.getServiceDate()))
+            if java_obj.getServiceDate()
+            else None
+        )
+        self.revenue_code = (
+            str(java_obj.getRevenueCode()) if java_obj.getRevenueCode() else ""
+        )
+        self.hcpcs = str(java_obj.getHcpcs()) if java_obj.getHcpcs() else ""
+        self.units_input = java_string_to_int(
+            str(java_obj.getUnitsInput()) if java_obj.getUnitsInput() else ""
+        )
+        self.charge = java_string_to_float(
+            str(java_obj.getCharge()) if java_obj.getCharge() else ""
+        )
+        self.action_flag_input = (
+            str(java_obj.getActionFlagInput()) if java_obj.getActionFlagInput() else ""
+        )
 
-            self.hcpcs_modifier_input_list = []  # Clear before populating
-            if (
-                hasattr(java_obj, "getHcpcsModifierInputList")
-                and java_obj.getHcpcsModifierInputList()
-            ):
-                for modifier in java_obj.getHcpcsModifierInputList():
-                    self.hcpcs_modifier_input_list.append(
-                        IoceOutputHcpcsModifier().from_java(modifier)
-                    )
+        self.action_flag_output = (
+            str(java_obj.getActionFlagOutput())
+            if java_obj.getActionFlagOutput()
+            else ""
+        )
+        self.rejection_denial_flag = (
+            str(java_obj.getRejectionDenialFlag())
+            if java_obj.getRejectionDenialFlag()
+            else ""
+        )
+        self.payment_method_flag = (
+            str(java_obj.getPaymentMethodFlag())
+            if java_obj.getPaymentMethodFlag()
+            else ""
+        )
+        self.hcpcs_apc = str(java_obj.getHcpcsApc()) if java_obj.getHcpcsApc() else ""
+        self.payment_apc = (
+            str(java_obj.getPaymentApc()) if java_obj.getPaymentApc() else ""
+        )
+        self.units_output = java_string_to_int(
+            str(java_obj.getUnitsOutput()) if java_obj.getUnitsOutput() else ""
+        )
+        self.status_indicator = (
+            str(java_obj.getStatusIndicator()) if java_obj.getStatusIndicator() else ""
+        )
+        self.payment_indicator = (
+            str(java_obj.getPaymentIndicator())
+            if java_obj.getPaymentIndicator()
+            else ""
+        )
+        self.discounting_formula = java_string_to_int(
+            str(java_obj.getDiscountingFormula())
+            if java_obj.getDiscountingFormula()
+            else ""
+        )
+        self.composite_adjustment_flag = (
+            str(java_obj.getCompositeAdjustmentFlag())
+            if java_obj.getCompositeAdjustmentFlag()
+            else ""
+        )
 
-            self.hcpcs_modifier_output_list = []  # Clear before populating
-            if (
-                hasattr(java_obj, "getHcpcsModifierOutputList")
-                and java_obj.getHcpcsModifierOutputList()
-            ):
-                for modifier in java_obj.getHcpcsModifierOutputList():
-                    self.hcpcs_modifier_output_list.append(
-                        IoceOutputHcpcsModifier().from_java(modifier)
-                    )
-
-            self.hcpcs_edit_list = []  # Clear before populating
-            if hasattr(java_obj, "getHcpcsEditList") and java_obj.getHcpcsEditList():
-                for edit in java_obj.getHcpcsEditList():
-                    self.hcpcs_edit_list.append(IoceOutputEdit(edit=str(edit)))
-
-            self.revenue_edit_list = []  # Clear before populating
-            if (
-                hasattr(java_obj, "getRevenueEditList")
-                and java_obj.getRevenueEditList()
-            ):
-                for edit in java_obj.getRevenueEditList():
-                    self.revenue_edit_list.append(IoceOutputEdit(edit=str(edit)))
-
-            self.service_date_edit_list = []  # Clear before populating
-            if (
-                hasattr(java_obj, "getServiceDateEditList")
-                and java_obj.getServiceDateEditList()
-            ):
-                for edit in java_obj.getServiceDateEditList():
-                    self.service_date_edit_list.append(IoceOutputEdit(edit=str(edit)))
-
-            if hasattr(java_obj, "getPackagingFlag") and java_obj.getPackagingFlag():
-                self.packaging_flag.flag = (
-                    str(java_obj.getPackagingFlag())
-                    if java_obj.getPackagingFlag()
-                    else ""
+        self.hcpcs_modifier_input_list = []
+        if (
+            hasattr(java_obj, "getHcpcsModifierInputList")
+            and java_obj.getHcpcsModifierInputList()
+        ):
+            for modifier in java_obj.getHcpcsModifierInputList():
+                self.hcpcs_modifier_input_list.append(
+                    IoceOutputHcpcsModifier().from_java(modifier)
                 )
 
-            if (
-                hasattr(java_obj, "getPaymentAdjustmentFlag01")
-                and java_obj.getPaymentAdjustmentFlag01()
-            ):
-                self.payment_adjustment_flag01.flag = (
-                    str(java_obj.getPaymentAdjustmentFlag01())
-                    if java_obj.getPaymentAdjustmentFlag01()
-                    else ""
+        self.hcpcs_modifier_output_list = []
+        if (
+            hasattr(java_obj, "getHcpcsModifierOutputList")
+            and java_obj.getHcpcsModifierOutputList()
+        ):
+            for modifier in java_obj.getHcpcsModifierOutputList():
+                self.hcpcs_modifier_output_list.append(
+                    IoceOutputHcpcsModifier().from_java(modifier)
                 )
 
-            if (
-                hasattr(java_obj, "getPaymentAdjustmentFlag02")
-                and java_obj.getPaymentAdjustmentFlag02()
-            ):
-                self.payment_adjustment_flag02.flag = (
-                    str(java_obj.getPaymentAdjustmentFlag02())
-                    if java_obj.getPaymentAdjustmentFlag02()
-                    else ""
-                )
+        self.hcpcs_edit_list = []
+        if hasattr(java_obj, "getHcpcsEditList") and java_obj.getHcpcsEditList():
+            for edit in java_obj.getHcpcsEditList():
+                self.hcpcs_edit_list.append(IoceOutputEdit(edit=str(edit)))
+
+        self.revenue_edit_list = []
+        if hasattr(java_obj, "getRevenueEditList") and java_obj.getRevenueEditList():
+            for edit in java_obj.getRevenueEditList():
+                self.revenue_edit_list.append(IoceOutputEdit(edit=str(edit)))
+
+        self.service_date_edit_list = []
+        if (
+            hasattr(java_obj, "getServiceDateEditList")
+            and java_obj.getServiceDateEditList()
+        ):
+            for edit in java_obj.getServiceDateEditList():
+                self.service_date_edit_list.append(IoceOutputEdit(edit=str(edit)))
+
+        if hasattr(java_obj, "getPackagingFlag") and java_obj.getPackagingFlag():
+            self.packaging_flag.flag = (
+                str(java_obj.getPackagingFlag()) if java_obj.getPackagingFlag() else ""
+            )
+
+        if (
+            hasattr(java_obj, "getPaymentAdjustmentFlag01")
+            and java_obj.getPaymentAdjustmentFlag01()
+        ):
+            self.payment_adjustment_flag01.flag = (
+                str(java_obj.getPaymentAdjustmentFlag01())
+                if java_obj.getPaymentAdjustmentFlag01()
+                else ""
+            )
+
+        if (
+            hasattr(java_obj, "getPaymentAdjustmentFlag02")
+            and java_obj.getPaymentAdjustmentFlag02()
+        ):
+            self.payment_adjustment_flag02.flag = (
+                str(java_obj.getPaymentAdjustmentFlag02())
+                if java_obj.getPaymentAdjustmentFlag02()
+                else ""
+            )
 
         return self
 
@@ -348,53 +347,53 @@ class IoceOutput(BaseModel):
     claim_rejection_disposition: str = ""
     claim_rejection_disposition_description: str = ""
     claim_rejection_disposition_value_description: str = ""
-    claim_rejection_edit_list: List[IoceOutputEdit] = Field(default_factory=list)
+    claim_rejection_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
     claim_denial_disposition: str = ""
     claim_denial_disposition_description: str = ""
     claim_denial_disposition_value_description: str = ""
-    claim_denial_edit_list: List[IoceOutputEdit] = Field(default_factory=list)
+    claim_denial_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
     claim_return_to_provider_disposition: str = ""
     claim_return_to_provider_disposition_description: str = ""
     claim_return_to_provider_disposition_value_description: str = ""
-    claim_return_to_provider_edit_list: List[IoceOutputEdit] = Field(
+    claim_return_to_provider_edit_list: list[IoceOutputEdit] = Field(
         default_factory=list
     )
 
     claim_suspension_disposition: str = ""
     claim_suspension_disposition_description: str = ""
     claim_suspension_disposition_value_description: str = ""
-    claim_suspension_edit_list: List[IoceOutputEdit] = Field(default_factory=list)
+    claim_suspension_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
     line_rejection_disposition: str = ""
     line_rejection_disposition_description: str = ""
     line_rejection_disposition_value_description: str = ""
-    line_rejection_edit_list: List[IoceOutputEdit] = Field(default_factory=list)
+    line_rejection_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
     line_denial_disposition: str = ""
     line_denial_disposition_description: str = ""
     line_denial_disposition_value_description: str = ""
-    line_denial_edit_list: List[IoceOutputEdit] = Field(default_factory=list)
+    line_denial_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
-    condition_code_output_list: List[str] = Field(default_factory=list)
-    value_code_output_list: List[IoceOutputValueCode] = Field(default_factory=list)
+    condition_code_output_list: list[str] = Field(default_factory=list)
+    value_code_output_list: list[IoceOutputValueCode] = Field(default_factory=list)
 
     principal_diagnosis_code: IoceOutputDiagnosisCode = Field(
         default_factory=IoceOutputDiagnosisCode
     )
-    reason_for_visit_diagnosis_code_list: List[IoceOutputDiagnosisCode] = Field(
+    reason_for_visit_diagnosis_code_list: list[IoceOutputDiagnosisCode] = Field(
         default_factory=list
     )
-    secondary_diagnosis_code_list: List[IoceOutputDiagnosisCode] = Field(
+    secondary_diagnosis_code_list: list[IoceOutputDiagnosisCode] = Field(
         default_factory=list
     )
 
-    line_item_list: List[IoceOutputLineItem] = Field(default_factory=list)
+    line_item_list: list[IoceOutputLineItem] = Field(default_factory=list)
 
-    def from_java(self, java_claim):
+    def from_java(self, java_claim: jpype.JObject | None) -> "IoceOutput":
         """Extract all output data from the processed Java OceClaim object"""
-        if java_claim is None:
+        if not java_claim:
             return self
 
         try:
@@ -461,7 +460,7 @@ class IoceOutput(BaseModel):
                 else ""
             )
 
-            self.claim_rejection_edit_list = []  # Clear before populating
+            self.claim_rejection_edit_list = []
             if (
                 hasattr(java_claim, "getClaimRejectionEditList")
                 and java_claim.getClaimRejectionEditList()
@@ -471,7 +470,7 @@ class IoceOutput(BaseModel):
                         IoceOutputEdit(edit=str(edit))
                     )
 
-            self.claim_denial_edit_list = []  # Clear before populating
+            self.claim_denial_edit_list = []
             if (
                 hasattr(java_claim, "getClaimDenialEditList")
                 and java_claim.getClaimDenialEditList()
@@ -479,7 +478,7 @@ class IoceOutput(BaseModel):
                 for edit in java_claim.getClaimDenialEditList():
                     self.claim_denial_edit_list.append(IoceOutputEdit(edit=str(edit)))
 
-            self.claim_return_to_provider_edit_list = []  # Clear before populating
+            self.claim_return_to_provider_edit_list = []
             if (
                 hasattr(java_claim, "getClaimReturnToProviderEditList")
                 and java_claim.getClaimReturnToProviderEditList()
@@ -489,7 +488,7 @@ class IoceOutput(BaseModel):
                         IoceOutputEdit(edit=str(edit))
                     )
 
-            self.claim_suspension_edit_list = []  # Clear before populating
+            self.claim_suspension_edit_list = []
             if (
                 hasattr(java_claim, "getClaimSuspensionEditList")
                 and java_claim.getClaimSuspensionEditList()
@@ -499,7 +498,7 @@ class IoceOutput(BaseModel):
                         IoceOutputEdit(edit=str(edit))
                     )
 
-            self.line_rejection_edit_list = []  # Clear before populating
+            self.line_rejection_edit_list = []
             if (
                 hasattr(java_claim, "getLineRejectionEditList")
                 and java_claim.getLineRejectionEditList()
@@ -507,7 +506,7 @@ class IoceOutput(BaseModel):
                 for edit in java_claim.getLineRejectionEditList():
                     self.line_rejection_edit_list.append(IoceOutputEdit(edit=str(edit)))
 
-            self.line_denial_edit_list = []  # Clear before populating
+            self.line_denial_edit_list = []
             if (
                 hasattr(java_claim, "getLineDenialEditList")
                 and java_claim.getLineDenialEditList()
@@ -515,7 +514,7 @@ class IoceOutput(BaseModel):
                 for edit in java_claim.getLineDenialEditList():
                     self.line_denial_edit_list.append(IoceOutputEdit(edit=str(edit)))
 
-            self.condition_code_output_list = []  # Clear before populating
+            self.condition_code_output_list = []
             if (
                 hasattr(java_claim, "getConditionCodeOutputList")
                 and java_claim.getConditionCodeOutputList()
@@ -523,7 +522,7 @@ class IoceOutput(BaseModel):
                 for code in java_claim.getConditionCodeOutputList():
                     self.condition_code_output_list.append(str(code))
 
-            self.value_code_output_list = []  # Clear before populating
+            self.value_code_output_list = []
             if (
                 hasattr(java_claim, "getValueCodeOutputList")
                 and java_claim.getValueCodeOutputList()
@@ -541,7 +540,7 @@ class IoceOutput(BaseModel):
                     java_claim.getPrincipalDiagnosisCode()
                 )
 
-            self.reason_for_visit_diagnosis_code_list = []  # Clear before populating
+            self.reason_for_visit_diagnosis_code_list = []
             if (
                 hasattr(java_claim, "getReasonForVisitDiagnosisCodeList")
                 and java_claim.getReasonForVisitDiagnosisCodeList()
@@ -551,7 +550,7 @@ class IoceOutput(BaseModel):
                         IoceOutputDiagnosisCode().from_java(dx)
                     )
 
-            self.secondary_diagnosis_code_list = []  # Clear before populating
+            self.secondary_diagnosis_code_list = []
             if (
                 hasattr(java_claim, "getSecondaryDiagnosisCodeList")
                 and java_claim.getSecondaryDiagnosisCodeList()
@@ -561,7 +560,7 @@ class IoceOutput(BaseModel):
                         IoceOutputDiagnosisCode().from_java(dx)
                     )
 
-            self.line_item_list = []  # Clear before populating
+            self.line_item_list = []
             if hasattr(java_claim, "getLineItemList") and java_claim.getLineItemList():
                 for line in java_claim.getLineItemList():
                     self.line_item_list.append(IoceOutputLineItem().from_java(line))
@@ -571,8 +570,10 @@ class IoceOutput(BaseModel):
 
         return self
 
+    @override
     def __str__(self):
         return f"IoceOutput(return_code={self.processing_information.return_code}, lines_processed={self.processing_information.lines_processed})"
 
+    @override
     def __repr__(self):
         return self.__str__()

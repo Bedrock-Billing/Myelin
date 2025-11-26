@@ -1,20 +1,18 @@
-from typing import Optional
-
 import jpype
 from pydantic import BaseModel
 
 
 class IrfgOutput(BaseModel):
     claim_id: str = ""
-    irf_version: Optional[int] = None
-    motor_score: Optional[float] = None
-    ric: Optional[int] = None
-    cmg_group: Optional[str] = None
-    error_code: Optional[int] = None
-    error_description: Optional[str] = None
+    irf_version: int | None = None
+    motor_score: float | None = None
+    ric: int | None = None
+    cmg_group: str | None = None
+    error_code: int | None = None
+    error_description: str | None = None
 
-    def from_java(self, java_obj: jpype.JObject):
-        if java_obj is None:
+    def from_java(self, java_obj: jpype.JObject) -> None:
+        if not java_obj:
             return
         self.irf_version = java_obj.getUsedIrfVersion()
         self.motor_score = float(java_obj.getCalculatedMotorScore())

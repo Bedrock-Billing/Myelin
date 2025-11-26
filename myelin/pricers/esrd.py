@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 from logging import Logger, getLogger
-from typing import Optional
 
 import jpype
 from pydantic import BaseModel
@@ -19,523 +18,530 @@ from myelin.plugins import apply_client_methods, run_client_load_classes
 from myelin.pricers.opsf import OPSFProvider
 from myelin.pricers.url_loader import UrlLoader
 
-COMORBIDITY_CODES = {
-    "K2211": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K250": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K252": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K254": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K256": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K260": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K262": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K264": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K266": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K270": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K272": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K274": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K276": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K280": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K282": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K284": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K286": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K31811": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5521": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5701": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5711": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5713": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5721": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5731": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5733": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5741": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5751": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5753": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5781": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5791": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "K5793": {
-        "category": "MA",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "A1884": {
-        "category": "MC",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "I300": {
-        "category": "MC",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "I301": {
-        "category": "MC",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "I308": {
-        "category": "MC",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "I309": {
-        "category": "MC",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "I32": {
-        "category": "MC",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "M3212": {
-        "category": "MC",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D550": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D551": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D552": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D553": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D558": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D559": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D560": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D561": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D562": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D563": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D565": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D568": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D5700": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D5701": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D5702": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D5703": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D5709": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D571": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D5720": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57211": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57212": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57213": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57218": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57219": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D5740": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57411": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57412": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57413": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57418": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57419": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D5742": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57431": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57432": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57433": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57438": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57439": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D5744": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57451": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57452": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57453": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57458": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57459": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D5780": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57811": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57812": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57813": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57818": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D57819": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D580": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D581": {
-        "category": "MD",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D460": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D461": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D4620": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D4621": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D4622": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D464": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D469": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D46A": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D46B": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D46C": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D46Z": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D471": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
-    "D473": {
-        "category": "ME",
-        "start_date": datetime(2020, 1, 1),
-        "end_date": datetime(2050, 1, 1),
-    },
+
+class ComorbidityCode(BaseModel):
+    category: str
+    start_date: datetime
+    end_date: datetime
+
+
+COMORBIDITY_CODES: dict[str, ComorbidityCode] = {
+    "K2211": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K250": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K252": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K254": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K256": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K260": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K262": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K264": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K266": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K270": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K272": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K274": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K276": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K280": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K282": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K284": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K286": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K31811": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5521": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5701": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5711": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5713": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5721": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5731": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5733": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5741": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5751": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5753": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5781": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5791": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "K5793": ComorbidityCode(
+        category="MA",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "A1884": ComorbidityCode(
+        category="MC",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "I300": ComorbidityCode(
+        category="MC",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "I301": ComorbidityCode(
+        category="MC",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "I308": ComorbidityCode(
+        category="MC",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "I309": ComorbidityCode(
+        category="MC",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "I32": ComorbidityCode(
+        category="MC",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "M3212": ComorbidityCode(
+        category="MC",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D550": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D551": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D552": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D553": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D558": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D559": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D560": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D561": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D562": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D563": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D565": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D568": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D5700": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D5701": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D5702": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D5703": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D5709": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D571": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D5720": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57211": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57212": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57213": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57218": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57219": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D5740": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57411": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57412": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57413": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57418": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57419": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D5742": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57431": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57432": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57433": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57438": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57439": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D5744": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57451": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57452": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57453": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57458": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57459": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D5780": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57811": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57812": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57813": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57818": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D57819": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D580": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D581": ComorbidityCode(
+        category="MD",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D460": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D461": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D4620": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D4621": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D4622": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D464": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D469": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D46A": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D46B": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D46C": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D46Z": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D471": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
+    "D473": ComorbidityCode(
+        category="ME",
+        start_date=datetime(2020, 1, 1),
+        end_date=datetime(2050, 1, 1),
+    ),
 }
 
 
 class EsrdBundledPayment(BaseModel):
-    blended_composite_rate: Optional[float] = None
-    blended_outlier_rate: Optional[float] = None
-    blended_payment_rate: Optional[float] = None
-    comorbidity_payment_code: Optional[str] = None
-    full_composite_rate: Optional[float] = None
-    full_outlier_rate: Optional[float] = None
-    full_payment_rate: Optional[float] = None
+    blended_composite_rate: float | None = None
+    blended_outlier_rate: float | None = None
+    blended_payment_rate: float | None = None
+    comorbidity_payment_code: str | None = None
+    full_composite_rate: float | None = None
+    full_outlier_rate: float | None = None
+    full_payment_rate: float | None = None
 
     def from_java(self, java_obj: jpype.JObject) -> None:
         self.blended_composite_rate = float_or_none(java_obj.getBlendedCompositeRate())
@@ -548,13 +554,13 @@ class EsrdBundledPayment(BaseModel):
 
 
 class EsrdAdditionalPayment(BaseModel):
-    age_adjustment_factor: Optional[float] = None
-    body_mass_index_factor: Optional[float] = None
-    body_surface_area_factor: Optional[float] = None
-    budget_neutrality_rate: Optional[float] = None
-    national_labor_percent: Optional[float] = None
-    national_non_labor_percent: Optional[float] = None
-    wage_adjustment_rate: Optional[float] = None
+    age_adjustment_factor: float | None = None
+    body_mass_index_factor: float | None = None
+    body_surface_area_factor: float | None = None
+    budget_neutrality_rate: float | None = None
+    national_labor_percent: float | None = None
+    national_non_labor_percent: float | None = None
+    wage_adjustment_rate: float | None = None
 
     def from_java(self, java_obj: jpype.JObject) -> None:
         self.age_adjustment_factor = float_or_none(java_obj.getAgeAdjustmentFactor())
@@ -572,23 +578,23 @@ class EsrdAdditionalPayment(BaseModel):
 
 class EsrdOutput(BaseModel):
     claim_id: str = ""
-    return_code: Optional[ReturnCode] = None
-    calculation_version: Optional[str] = None
-    total_payment: Optional[float] = None
-    adj_base_wage_before_etc: Optional[float] = None
-    low_volume_amount: Optional[float] = None
-    network_reduction_amount: Optional[float] = None
-    outlier_non_per_diem_payment: Optional[float] = None
-    ppa_adjustment_amount: Optional[float] = None
-    pre_ppa_adjustment_amount: Optional[float] = None
-    post_ppa_adjustment_amount: Optional[float] = None
-    tdapa_adjustment_amount: Optional[float] = None
-    tpniescra_adjustment_amount: Optional[float] = None
-    tpnies_adjustment_amount: Optional[float] = None
-    hdpa_adjustment_amount: Optional[float] = None
-    final_wage_index: Optional[float] = None
-    additional_payment_data: Optional[EsrdAdditionalPayment] = None
-    bundled_payment_data: Optional[EsrdBundledPayment] = None
+    return_code: ReturnCode | None = None
+    calculation_version: str | None = None
+    total_payment: float | None = None
+    adj_base_wage_before_etc: float | None = None
+    low_volume_amount: float | None = None
+    network_reduction_amount: float | None = None
+    outlier_non_per_diem_payment: float | None = None
+    ppa_adjustment_amount: float | None = None
+    pre_ppa_adjustment_amount: float | None = None
+    post_ppa_adjustment_amount: float | None = None
+    tdapa_adjustment_amount: float | None = None
+    tpniescra_adjustment_amount: float | None = None
+    tpnies_adjustment_amount: float | None = None
+    hdpa_adjustment_amount: float | None = None
+    final_wage_index: float | None = None
+    additional_payment_data: EsrdAdditionalPayment | None = None
+    bundled_payment_data: EsrdBundledPayment | None = None
 
     def from_java(self, java_obj: jpype.JObject) -> None:
         self.calculation_version = str(java_obj.getCalculationVersion())
@@ -644,9 +650,9 @@ class EsrdOutput(BaseModel):
 class EsrdClient:
     def __init__(
         self,
-        jar_path=None,
-        db: Optional[Engine] = None,
-        logger: Optional[Logger] = None,
+        jar_path: str | None = None,
+        db: Engine | None = None,
+        logger: Logger | None = None,
     ):
         if not jpype.isJVMStarted():
             raise RuntimeError(
@@ -676,7 +682,7 @@ class EsrdClient:
         except Exception:
             pass
 
-    def load_classes(self):
+    def load_classes(self) -> None:
         self.esrd_pricer_config_class = jpype.JClass(
             "gov.cms.fiss.pricers.esrd.EsrdPricerConfiguration",
             loader=self.url_loader.class_loader,
@@ -742,7 +748,7 @@ class EsrdClient:
             loader=self.url_loader.class_loader,
         )
 
-    def pricer_setup(self):
+    def pricer_setup(self) -> None:
         self.esrd_config_obj = self.esrd_pricer_config_class()
         self.csv_ingest_obj = self.esrd_csv_ingest_class()
         self.esrd_config_obj.setCsvIngestionConfiguration(self.csv_ingest_obj)
@@ -757,7 +763,7 @@ class EsrdClient:
                 "Failed to create EsrdPricerDispatch object. Check your JAR file and classpath."
             )
 
-    def py_date_to_java_date(self, py_date):
+    def py_date_to_java_date(self, py_date: datetime) -> jpype.JObject:
         return py_date_to_java_date(self, py_date)
 
     def get_dialysis_rev(self, claim: Claim) -> str:
@@ -780,7 +786,7 @@ class EsrdClient:
                     dialysis_dates.add(line.service_date)
         return len(dialysis_dates)
 
-    def create_input_claim(self, claim: Claim, **kwargs) -> jpype.JObject:
+    def create_input_claim(self, claim: Claim, **kwargs: object) -> jpype.JObject:
         if self.db is None:
             raise ValueError("Database connection is required for ESRD pricing")
         claim_object = self.esrd_pricer_claim_data_class()
@@ -839,8 +845,12 @@ class EsrdClient:
         if not weight_set:
             raise ValueError("Patient Weight is required for ESRD pricing")
 
-        claim_object.setServiceDate(self.py_date_to_java_date(claim.from_date))
-        claim_object.setServiceThroughDate(self.py_date_to_java_date(claim.thru_date))
+        if claim.from_date:
+            claim_object.setServiceDate(self.py_date_to_java_date(claim.from_date))
+        if claim.thru_date:
+            claim_object.setServiceThroughDate(
+                self.py_date_to_java_date(claim.thru_date)
+            )
 
         demo_codes = self.array_list_class()
         for code in claim.demo_codes:
@@ -873,13 +883,15 @@ class EsrdClient:
 
         comorbidity_codes = self.array_list_class()
         for code in claim.secondary_dxs:
-            val = COMORBIDITY_CODES.get(code.code.replace(".", ""))
-            if val:
+            comorbidity_code = COMORBIDITY_CODES.get(code.code.replace(".", ""))
+            if comorbidity_code:
                 if (
-                    val["start_date"] >= claim.from_date
-                    and val["end_date"] <= claim.thru_date
+                    claim.from_date
+                    and claim.thru_date
+                    and comorbidity_code.start_date >= claim.from_date
+                    and comorbidity_code.end_date <= claim.thru_date
                 ):
-                    comorbidity_codes.add(val["category"])
+                    comorbidity_codes.add(comorbidity_code.category)
         comorbidity_obj = self.comorbid_conditions_class()
         comorbidity_obj.setComorbidityCodes(comorbidity_codes)
         claim_object.setComorbidities(comorbidity_obj)
@@ -925,7 +937,7 @@ class EsrdClient:
         raise ValueError("Dispatch object does not have a process method.")
 
     @handle_java_exceptions
-    def process(self, claim: Claim, **kwargs) -> EsrdOutput:
+    def process(self, claim: Claim, **kwargs: object) -> EsrdOutput:
         """
         Process the claim and return the SNF pricing response.
 
