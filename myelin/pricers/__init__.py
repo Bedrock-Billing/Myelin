@@ -1,7 +1,7 @@
 from .esrd import EsrdClient, EsrdOutput
 from .fqhc import FqhcClient, FqhcOutput
 from .hha import HhaClient, HhaOutput
-from .hospice import HospiceClient, HospiceOutput
+from .hospice import HospiceClient, HospiceOutput, HospiceLineOutput
 from .ipf import IpfClient, IpfOutput
 from .ipps import IppsClient, IppsOutput
 from .ipsf import IPSFDatabase, IPSFProvider
@@ -24,6 +24,7 @@ __all__ = [
     "LtchOutput",
     "HospiceClient",
     "HospiceOutput",
+    "HospiceLineOutput",
     "IPSFDatabase",
     "IPSFProvider",
     "OPSFDatabase",
