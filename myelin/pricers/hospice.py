@@ -49,12 +49,14 @@ class EolaOutput(BaseModel):
         self.payment_amount = float_or_none(java_obj.getPayment())
         return
 
+
 class HospiceLineOutput(BaseModel):
     line_number: int | None = None
     payment: float | None = None
     reimbursement_amount: float | None = None
     coinsurance_amount: float | None = None
     return_code: ReturnCode | None = None
+
 
 class HospiceOutput(BaseModel):
     claim_id: str = ""
@@ -67,7 +69,6 @@ class HospiceOutput(BaseModel):
     billing_group_payments: list[BillingGroupOutput] | None = None
     eola_payments: list[EolaOutput] | None = None
     total_payment: float | None = None
-    service_lines: list[HospiceLineOutput] | None = None
 
     def from_java(self, java_obj: jpype.JClass):
         self.calculation_version = str(java_obj.getCalculationVersion())
@@ -438,8 +439,7 @@ class HospiceClient:
         return pricing_request
 
     @handle_java_exceptions
-    def process(self, claim: Claim, ioce_output: IoceOutput | None = None, **kwargs) -> HospiceOutput:
-        _ = ioce_output
+    def process(self, claim: Claim) -> HospiceOutput:
         try:
             pricing_request = self.create_input_claim(claim)
         except PricerRuntimeError as e:

@@ -1,19 +1,20 @@
 """Tests for Excel exporter functionality."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from pydantic import BaseModel, Field
 
 # Test helper models
 from myelin.helpers.excel_exporter import (
+    _concatenate_edit_list,
+    _concatenate_string_list,
+    _extract_list_items,
     _flatten_model,
     _format_value,
     _humanize_key,
-    _extract_list_items,
     _is_edit_list,
-    _concatenate_edit_list,
     _is_simple_string_list,
-    _concatenate_string_list,
 )
 
 
@@ -383,6 +384,7 @@ class TestExcelExporter:
     def sample_claim(self):
         """Create a sample Claim for testing."""
         from datetime import datetime
+
         from myelin.input.claim import Claim, DiagnosisCode, LineItem
 
         return Claim(
@@ -415,6 +417,7 @@ class TestExcelExporter:
         """Test exporting with claim input included."""
         try:
             import openpyxl
+
             from myelin.helpers.excel_exporter import export_to_excel
 
             filepath = tmp_path / "test_with_claim.xlsx"

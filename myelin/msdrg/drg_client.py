@@ -7,7 +7,7 @@ from threading import RLock
 import jpype
 
 from myelin.converter.icd_converter import ICD10ConvertOutput, ICDConverter
-from myelin.helpers.utils import handle_java_exceptions, JavaRuntimeError
+from myelin.helpers.utils import JavaRuntimeError, handle_java_exceptions
 from myelin.input.claim import (
     Claim,
     DiagnosisCode,

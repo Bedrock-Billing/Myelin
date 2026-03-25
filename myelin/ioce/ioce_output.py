@@ -3,16 +3,17 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
+from myelin.helpers.utils import JavaRuntimeError
+
 # Provides stubs during TYPE_CHECKING and protocol classes at runtime
 from myelin.ioce.ioce_types import (
     OceClaim,
-    OceLineItem,
     OceDiagnosisCode,
     OceHcpcsModifier,
-    OceValueCode,
+    OceLineItem,
     OceProcessingInformation,
+    OceValueCode,
 )
-from myelin.helpers.utils import JavaRuntimeError
 
 
 class IoceReturnCode(BaseModel):

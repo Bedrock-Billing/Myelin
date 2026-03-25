@@ -12,9 +12,8 @@ Output: A normalized CSV file that can be loaded by data_loader.py
 
 import csv
 import os
-from typing import Dict, List, Optional
 from dataclasses import dataclass
-
+from typing import Dict, List, Optional
 
 # Source file mapping: (filename_pattern, format_type, year_coverage)
 # Format types: "legacy" (2022-2023) or "new" (2024+)

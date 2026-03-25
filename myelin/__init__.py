@@ -27,7 +27,7 @@ from .converter import (
 )
 
 # High-level orchestrator
-from .core import Myelin, MyelinOutput, MyelinIO
+from .core import Myelin, MyelinIO, MyelinOutput
 from .helpers.cms_downloader import CMSDownloader
 from .helpers.utils import ReturnCode
 
@@ -69,7 +69,7 @@ from .msdrg import DrgClient, MsdrgOutput, MsdrgOutputDxCode, MsdrgOutputPrCode
 from .pricers.esrd import EsrdClient, EsrdOutput
 from .pricers.fqhc import FqhcClient, FqhcOutput
 from .pricers.hha import HhaClient, HhaOutput
-from .pricers.hospice import HospiceClient, HospiceOutput, HospiceLineOutput
+from .pricers.hospice import HospiceClient, HospiceLineOutput, HospiceOutput
 from .pricers.ipf import IpfClient, IpfOutput
 
 # Pricers

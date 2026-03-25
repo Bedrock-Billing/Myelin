@@ -1,10 +1,9 @@
-import _pytest._code.source
-from myelin import OPSFProvider
-from myelin import IPSFProvider
 import os
 from datetime import datetime, timedelta
 
-from myelin import Myelin, MyelinOutput
+import _pytest._code.source
+
+from myelin import IPSFProvider, Myelin, MyelinOutput, OPSFProvider
 from myelin.helpers.claim_examples import (
     claim_example,
     json_claim_example,
@@ -404,6 +403,7 @@ def run_myelin_process(myelin: Myelin):
     results = myelin.process(claim)
     results.to_excel("./myelin_process_output.xlsx")
     print(results.model_dump_json(indent=2, exclude_none=True))
+    claim.to_ub04_pdf(f"{claim.claimid}.pdf")
 
 
 def main():

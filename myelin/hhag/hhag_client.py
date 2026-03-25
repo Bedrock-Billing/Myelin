@@ -1,6 +1,6 @@
 import jpype
 
-from myelin.helpers.utils import handle_java_exceptions, JavaRuntimeError
+from myelin.helpers.utils import JavaRuntimeError, handle_java_exceptions
 from myelin.hhag.hhag_output import HhagOutput
 from myelin.input.claim import Claim
 
