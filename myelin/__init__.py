@@ -27,7 +27,7 @@ from .converter import (
 )
 
 # High-level orchestrator
-from .core import Myelin, MyelinOutput, MyelinIO
+from .core import Myelin, MyelinIO, MyelinOutput
 from .helpers.cms_downloader import CMSDownloader
 from .helpers.utils import ReturnCode
 

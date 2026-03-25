@@ -7,21 +7,21 @@ Fancy dual-type strategy:
 Import from this module and automatically get the correct types in each context.
 """
 
-from typing import Protocol, runtime_checkable, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     # Import generated stubs for IDE autocomplete during type checking
+    from gov.cms.oce import IoceClaim as IoceClaim
+    from gov.cms.oce import IoceComponent as IoceComponent
     from gov.cms.oce.model.external import OceClaim as OceClaim
-    from gov.cms.oce.model.external import OceLineItem as OceLineItem
+    from gov.cms.oce.model.external import OceClaimFactory as OceClaimFactory
     from gov.cms.oce.model.external import OceDiagnosisCode as OceDiagnosisCode
     from gov.cms.oce.model.external import OceHcpcsModifier as OceHcpcsModifier
-    from gov.cms.oce.model.external import OceValueCode as OceValueCode
+    from gov.cms.oce.model.external import OceLineItem as OceLineItem
     from gov.cms.oce.model.external import (
         OceProcessingInformation as OceProcessingInformation,
     )
-    from gov.cms.oce.model.external import OceClaimFactory as OceClaimFactory
-    from gov.cms.oce import IoceComponent as IoceComponent
-    from gov.cms.oce import IoceClaim as IoceClaim
+    from gov.cms.oce.model.external import OceValueCode as OceValueCode
 else:
     # Protocol types for runtime use
     # runtime_checkable decorator allows isinstance checks at runtime

@@ -3,9 +3,9 @@ from datetime import datetime
 import jpype
 
 from myelin.helpers.utils import (
+    JavaRuntimeError,
     handle_java_exceptions,
     py_date_to_java_date,
-    JavaRuntimeError,
 )
 from myelin.input import IrfPai
 from myelin.input.claim import (

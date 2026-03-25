@@ -2,7 +2,7 @@ from datetime import datetime
 
 import jpype
 
-from myelin.helpers.utils import handle_java_exceptions, JavaRuntimeError
+from myelin.helpers.utils import JavaRuntimeError, handle_java_exceptions
 from myelin.input.claim import Claim
 from myelin.plugins import apply_client_methods, run_client_load_classes
 

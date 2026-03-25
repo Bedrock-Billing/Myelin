@@ -4,10 +4,11 @@ from contextlib import redirect_stderr
 from datetime import datetime
 from os import getenv
 from typing import Callable, ParamSpec, Protocol, TypeVar
-from myelin.input.claim import Modules
 
 import jpype
 from pydantic import BaseModel
+
+from myelin.input.claim import Modules
 
 PROVIDER_TYPES = {
     "00": {

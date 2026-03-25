@@ -5,7 +5,6 @@ import pickle
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
-
 # Bump this version whenever the structure of AscRefData changes to
 # automatically invalidate stale .pkl cache files.
 _CACHE_VERSION = 2
