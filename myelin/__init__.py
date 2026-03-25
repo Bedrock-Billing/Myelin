@@ -69,7 +69,7 @@ from .msdrg import DrgClient, MsdrgOutput, MsdrgOutputDxCode, MsdrgOutputPrCode
 from .pricers.esrd import EsrdClient, EsrdOutput
 from .pricers.fqhc import FqhcClient, FqhcOutput
 from .pricers.hha import HhaClient, HhaOutput
-from .pricers.hospice import HospiceClient, HospiceOutput
+from .pricers.hospice import HospiceClient, HospiceLineOutput, HospiceOutput
 from .pricers.ipf import IpfClient, IpfOutput
 
 # Pricers
@@ -134,6 +134,7 @@ __all__ = [
     "LtchOutput",
     "HospiceClient",
     "HospiceOutput",
+    "HospiceLineOutput",
     "SnfClient",
     "SnfOutput",
     "HhaClient",

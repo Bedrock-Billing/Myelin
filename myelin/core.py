@@ -714,6 +714,10 @@ class Myelin:
         client,
         results: MyelinOutput,
         claim: Claim,
+<<<<<<< HEAD
+=======
+        **kwargs,
+>>>>>>> master
     ) -> None:
         """Process Hospice pricer."""
         if client is None:

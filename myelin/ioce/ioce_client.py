@@ -1,6 +1,6 @@
 from datetime import datetime
 
-import jpype  # pyright: ignore[reportMissingTypeStubs]
+import jpype  # pyright: ignore[reportMissingTypeStubs]  # pyright: ignore[reportMissingTypeStubs]
 
 from myelin.helpers.utils import JavaRuntimeError, handle_java_exceptions
 from myelin.input.claim import (
@@ -12,6 +12,7 @@ from myelin.input.claim import (
 )
 from myelin.ioce.ioce_output import IoceOutput, IoceOutputEdit
 
+# Provides stubs during TYPE_CHECKING and protocol classes at runtime
 # Provides stubs during TYPE_CHECKING and protocol classes at runtime
 from myelin.ioce.ioce_types import (
     IoceClaim,
@@ -241,7 +242,7 @@ class IoceClient:
 
             """
             The IOCE has logic to ignore overrides if the edit bypass list is empty or does not contain
-            a valid edit value. We can "trick" the system to applying the overrides by adding the 
+            a valid edit value. We can "trick" the system to applying the overrides by adding the
             "invalid" edit value of "-1" to edit bypass list.
             """
 

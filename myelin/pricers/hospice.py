@@ -15,6 +15,7 @@ from myelin.helpers.utils import (
     py_date_to_java_date,
 )
 from myelin.input.claim import Claim
+from myelin.ioce import IoceOutput
 from myelin.plugins import apply_client_methods, run_client_load_classes
 from myelin.pricers.url_loader import UrlLoader
 
@@ -47,6 +48,14 @@ class EolaOutput(BaseModel):
         self.index = java_obj.getIndex()
         self.payment_amount = float_or_none(java_obj.getPayment())
         return
+
+
+class HospiceLineOutput(BaseModel):
+    line_number: int | None = None
+    payment: float | None = None
+    reimbursement_amount: float | None = None
+    coinsurance_amount: float | None = None
+    return_code: ReturnCode | None = None
 
 
 class HospiceOutput(BaseModel):
