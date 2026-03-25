@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
+from io import BytesIO
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -226,6 +230,36 @@ class Claim(BaseModel):
         if v < 0:
             raise ValueError("Total charges must be non-negative")
         return v
+
+    def to_ub04_pdf(
+        self,
+        filepath: str | Path | None = None,
+    ) -> bytes:
+        """Generate a filled UB04 PDF from this claim.
+
+        Args:
+            filepath: Optional path to write the PDF file.
+
+        Returns:
+            The filled PDF as bytes.
+        """
+        from myelin.helpers.ub04_pdf import write_ub04_pdf
+
+        return write_ub04_pdf(self, output_path=filepath)
+
+    @classmethod
+    def from_ub04_pdf(cls, pdf_path: str | Path | BytesIO) -> Claim:
+        """Read a filled UB04 PDF and create a Claim object.
+
+        Args:
+            pdf_path: Path to the PDF file, or a BytesIO buffer.
+
+        Returns:
+            A populated Claim object.
+        """
+        from myelin.helpers.ub04_pdf import read_ub04_pdf
+
+        return read_ub04_pdf(pdf_path)
 
     @model_validator(mode="after")
     def check_dates(self):

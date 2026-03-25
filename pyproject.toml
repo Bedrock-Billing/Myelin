@@ -32,7 +32,8 @@ dependencies = [
 
 [project.optional-dependencies]
 excel = ["openpyxl>=3.1.0"]
-all = ["openpyxl>=3.1.0"]
+pdf = ["pypdf>=6.9.2", "reportlab>=4.4.10"]
+all = ["openpyxl>=3.1.0", "pypdf>=6.9.2", "reportlab>=4.4.10"]
 
 [dependency-groups]
 dev = [
@@ -53,7 +54,7 @@ where = ["."]
 include = ["myelin*"]
 
 [tool.setuptools.package-data]
-myelin = ["pricers/asc/data/**/*"]
+myelin = ["pricers/asc/data/**/*", "helpers/ub04_data/*"]
 
 [project.urls]
 Homepage = "https://github.com/LibrePPS/myelin"

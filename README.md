@@ -36,6 +36,7 @@ By wrapping the official CMS software, Myelin ensures that you are using the sam
 - **Flexible Claim Construction:** Easily create and modify claims using Pydantic data models.
 - **Support for Multiple Editors and Groupers:** Includes interfaces for the MCE (inpatient), IOCE (outpatient), HHA (home health), and IRF (inpatient rehabilitation) grouper/editors.
 - **Comprehensive Pricer Suite:** Full-featured pricers for IPPS, OPPS, IPF, IRF, LTCH, SNF, HHA, Hospice, ESRD, and FQHC.
+- **UB-04 PDF Read/Write:** Convert `Claim` objects to filled CMS-1450/UB-04 PDFs and read filled UB-04 PDFs back into `Claim` objects.
 - **Extensible:** The underlying architecture makes it easy to add new components or customize existing ones.
 - **Example Scripts:** Get up and running quickly with a comprehensive set of examples in the `example.py` file.
 
@@ -57,9 +58,17 @@ By wrapping the official CMS software, Myelin ensures that you are using the sam
     ```bash
     pip install -r requirements.txt
     ```
+    To use UB-04 PDF read/write support, install the optional PDF dependencies:
+    ```bash
+    pip install .[pdf]
+    ```
     or, if you use [uv](https://github.com/astral-sh/uv):
     ```bash
     uv sync
+    ```
+    with PDF support:
+    ```bash
+    uv sync --extra pdf
     ```
     dev dependencies:
     ```bash
@@ -317,6 +326,41 @@ claim.lines.append(
 hospice_output = myelin.hospice_client.process(claim)
 print(hospice_output.model_dump_json(indent=2))
 ```
+
+### UB-04 PDF Read/Write
+
+Myelin can generate a filled CMS-1450/UB-04 PDF from a `Claim` and can also parse a filled UB-04 PDF back into a `Claim`.
+Currently only one [PDF](https://www.cms.gov/regulations-and-guidance/legislation/paperworkreductionactof1995/pra-listing-items/cms-1450) is supported but we may expand this in the future.
+
+```python
+from myelin.input.claim import Claim
+from myelin.helpers.ub04_pdf import write_ub04_calibration_pdf
+from myelin.helpers.claim_examples import claim_example
+
+claim = claim_example()
+
+# Write a filled UB-04 PDF and also get the bytes in memory
+pdf_bytes = claim.to_ub04_pdf("sample-ub04.pdf")
+
+# Read a filled UB-04 PDF back into a Claim
+parsed_claim = Claim.from_ub04_pdf("sample-ub04.pdf")
+
+print(parsed_claim.model_dump_json(indent=2, exclude_none=True))
+```
+
+You can also generate the PDF entirely in memory:
+
+```python
+pdf_bytes = claim.to_ub04_pdf()
+```
+
+To generate a calibration PDF that labels every mapped field position on the bundled template:
+
+```python
+write_ub04_calibration_pdf("ub04-calibration.pdf")
+```
+
+UB-04 PDF support requires the optional `pdf` extra.
 
 ## Project Structure
 
