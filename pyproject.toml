@@ -5,7 +5,6 @@ description = "A comprehensive Python toolkit for interacting with key component
 readme = "README.md"
 license-files = [ "LICENSE" ]
 authors = [
-  {name = "Jacob Wilson", email = "jjw07006@gmail.com"},
   {name = "Josh Lankford", email = "lankford.josh@gmail.com"},
 ]
 keywords = [ "cms", "drg", "msdrg", "ioce", "mce", "ipps", "opps", "ipf", "ipsf", "ltch", "opsf", "hospice" ]

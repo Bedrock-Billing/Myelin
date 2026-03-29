@@ -78,7 +78,6 @@ class MyelinOutput(BaseModel):
     esrd: EsrdOutput | None = None
     fqhc: FqhcOutput | None = None
     ipsf: IPSFProvider | None = None
-    ipsf: IPSFProvider | None = None
     opsf: OPSFProvider | None = None
     asc: AscOutput | None = None
 
