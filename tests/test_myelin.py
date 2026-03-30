@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from myelin import Myelin
+from myelin import IPSFProvider, Myelin, OPSFProvider
 from myelin.helpers.claim_examples import (
     claim_example,
     json_claim_example,

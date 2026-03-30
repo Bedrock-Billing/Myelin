@@ -5,8 +5,9 @@ Per CMS 40.7: When a pass-through device is billed with a procedure,
 the procedure payment is reduced by the device's percent multiplier.
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
 
 from myelin.input.claim import Claim, LineItem
 from myelin.pricers.asc.client import AscClient

@@ -578,7 +578,7 @@ class Myelin:
                     **kwargs,
                 )
             if Modules.HOSPICE in unique_modules:
-                self._process_pricer_hospice(self.hospice_client, results, claim, **kwargs)
+                self._process_pricer_hospice(self.hospice_client, results, claim)
             if Modules.SNF in unique_modules:
                 self._process_pricer_snf(
                     self.snf_client, results, claim, ipsf_provider, **kwargs
@@ -718,7 +718,7 @@ class Myelin:
         if client is None:
             results.error = "Hospice client not initialized"
             return
-        results.hospice = client.process(claim, results.ioce, **kwargs)
+        results.hospice = client.process(claim)
 
     def _process_pricer_snf(
         self,

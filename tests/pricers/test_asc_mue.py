@@ -14,12 +14,12 @@ MUEs are applied per HCPCS per date of service, so the same code on two
 different dates is evaluated independently.
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
 
 from myelin.input.claim import Claim, LineItem
 from myelin.pricers.asc.client import AscClient, AscMueLimit
-
 
 DATE_A = datetime(2025, 1, 15)
 DATE_B = datetime(2025, 1, 16)

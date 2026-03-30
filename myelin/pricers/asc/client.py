@@ -534,7 +534,9 @@ class AscClient:
             if expected_payment > 0:
                 # Calculate the percentage of the line's expected payment that was paid after MPR
                 discount_fraction = payment / expected_payment
-                mpr_line.discount_percent = float(discount_fraction.quantize(Decimal("0.0001")))
+                mpr_line.discount_percent = float(
+                    discount_fraction.quantize(Decimal("0.0001"))
+                )
             else:
                 mpr_line.discount_percent = 1.0
 

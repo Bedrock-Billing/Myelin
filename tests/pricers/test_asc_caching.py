@@ -1,8 +1,8 @@
 import os
+import pickle
 import shutil
 import sys
 import tempfile
-import pickle
 import time
 import unittest
 from datetime import datetime

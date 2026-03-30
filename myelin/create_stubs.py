@@ -1,5 +1,6 @@
 import pathlib
 import sys
+
 import jpype  # pyright: ignore[reportMissingTypeStubs]
 import stubgenj  # pyright: ignore[reportMissingTypeStubs]
 
