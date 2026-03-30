@@ -850,7 +850,7 @@ class IppsClient:
             else:
                 raise PricerRuntimeError(
                     "IPPS03",
-                    "DRG output is required for LTC pricing."
+                    "DRG output is required for LTC pricing. "
                     "A valid DRG must be provided in the claim's additional data. Or the MS-DRG module must be run prior to pricing.",
                 )
         pricing_request.setClaimData(claim_object)

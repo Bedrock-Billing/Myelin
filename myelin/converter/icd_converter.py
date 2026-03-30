@@ -374,12 +374,14 @@ class ICDConverter:
             for dx in claim.secondary_dxs:
                 if dx.code not in mappings:
                     mapping = self.convert_forward(dx.code, target_eff_date, 0)
-                    if mapping is not None and mapping is not None:
-                        mappings[dx.code] = mapping
+                    if mapping is not None:
+                        if mapping.conversion_choices is not None:
+                            mappings[dx.code] = mapping
             for op in claim.inpatient_pxs:
                 if op.code not in mappings:
                     mapping = self.convert_forward(op.code, target_eff_date, 1)
-                    if mapping is not None and mapping.conversion_choices is not None:
-                        mappings[op.code] = mapping
+                    if mapping is not None:
+                        if mapping.conversion_choices is not None:
+                            mappings[op.code] = mapping
         output.mappings = mappings
         return output
