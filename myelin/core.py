@@ -262,7 +262,6 @@ class Myelin:
         self.ioce_client = IoceClient()
         self.hhag_client = HhagClient()
         self.irfg_client = IrfgClient()
-        self.irfg_client = IrfgClient()
 
         # Initialize Custom Pricers
         try:
