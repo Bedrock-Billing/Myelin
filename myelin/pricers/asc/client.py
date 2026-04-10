@@ -742,6 +742,9 @@ class AscClient:
                     )
                     device_available_units[device_code] -= 1
                     break
+                else:
+                    line_out.code_pair_device = matched_device
+                    line_out.details += f" (CodePair:{matched_device} - No Offset multiplier)"
 
         # --- Modifier Payment Reductions (CMS §40.4, §40.10) ---
         # Device offset already applied to base rate above; only percentage cuts remain.

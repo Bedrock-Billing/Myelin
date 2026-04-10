@@ -361,7 +361,7 @@ def run_pricers(myelin: Myelin):
         asc_claim.lines.clear()
         asc_claim.lines.append(
             LineItem(
-                hcpcs="31020",
+                hcpcs="C1743",
                 service_date=datetime(2026, 7, 15),
                 units=1,
                 charges=5000.0,
@@ -370,10 +370,10 @@ def run_pricers(myelin: Myelin):
         )
         asc_claim.lines.append(
             LineItem(
-                hcpcs="66984",  # Cataract surgery (typically subject to discount)
+                hcpcs="37284",  # Cataract surgery (typically subject to discount)
                 service_date=datetime(2026, 7, 15),
                 units=1,
-                charges=8000.0,
+                charges=15000.0,
                 revenue_code="0490",
             )
         )
