@@ -1,7 +1,8 @@
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Iterable, Literal
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
 import sqlalchemy
@@ -15,6 +16,7 @@ from sqlalchemy import (
     String,
     bindparam,
     create_engine,
+    func,
     select,
 )
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
@@ -341,6 +343,88 @@ class IPSFDatabase:
                 sess.commit()
                 total += len(batch)
         if download and os.path.exists(csv_path):
+            try:
+                os.remove(csv_path)
+            except OSError:
+                pass
+        return total
+
+    def patch(self, batch_size: int = 4000) -> int:
+        """Incrementally update the IPSF table with new data since the last update.
+
+        Queries the maximum last_updated date from the table, fetches data from
+        the day after that date, and upserts it (replaces existing records with
+        the same provider_ccn + effective_date, inserts new ones).
+
+        Returns: number of rows upserted, or 0 if no new data or table is empty.
+        """
+        max_date_stmt = select(func.max(IPSF.last_updated))
+        with self.session() as sess:
+            max_date = sess.execute(max_date_stmt).scalar()
+
+        if not max_date:
+            return self.populate(download=True, batch_size=batch_size, truncate=True)
+
+        try:
+            # Try YYYYMMDD format first (most common in CMS data)
+            last_date = datetime.strptime(max_date, "%Y%m%d")
+            next_day = last_date + timedelta(days=1)
+            from_date = next_day.strftime("%Y-%m-%d")
+        except ValueError:
+            try:
+                # Fall back to YYYY-MM-DD format
+                last_date = datetime.strptime(max_date, "%Y-%m-%d")
+                next_day = last_date + timedelta(days=1)
+                from_date = next_day.strftime("%Y-%m-%d")
+            except ValueError:
+                return self.populate(download=True, batch_size=batch_size, truncate=True)
+
+        parsed = urlparse(IPSF_URL)
+        params = parse_qs(parsed.query)
+        params["fromDate"] = [from_date]
+        new_query = urlencode(params, doseq=True)
+        new_url = urlunparse(parsed._replace(query=new_query))
+
+        self.download(url=new_url)
+
+        # Upsert: delete existing records that match, then insert new ones
+        csv_path = os.path.join(os.path.dirname(self.db_path), "ipsf_data.csv")
+        total = 0
+        from sqlalchemy import delete as sql_delete
+        from sqlalchemy import insert as sql_insert
+
+        insert_stmt = sql_insert(IPSF)
+        with self.session() as sess:
+            batch: list[dict[str, Any]] = []
+            for rec in self._row_iter(csv_path):
+                batch.append(rec)
+                if len(batch) >= batch_size:
+                    # Delete existing records with same provider_ccn + effective_date
+                    for record in batch:
+                        delete_stmt = sql_delete(IPSF).where(
+                            IPSF.provider_ccn == record["provider_ccn"],
+                            IPSF.effective_date == record["effective_date"],
+                        )
+                        sess.execute(delete_stmt)
+                    # Insert new records
+                    sess.execute(insert_stmt, batch)
+                    sess.commit()
+                    total += len(batch)
+                    batch.clear()
+            if batch:
+                # Delete existing records with same provider_ccn + effective_date
+                for record in batch:
+                    delete_stmt = sql_delete(IPSF).where(
+                        IPSF.provider_ccn == record["provider_ccn"],
+                        IPSF.effective_date == record["effective_date"],
+                    )
+                    sess.execute(delete_stmt)
+                # Insert new records
+                sess.execute(insert_stmt, batch)
+                sess.commit()
+                total += len(batch)
+
+        if os.path.exists(csv_path):
             try:
                 os.remove(csv_path)
             except OSError:

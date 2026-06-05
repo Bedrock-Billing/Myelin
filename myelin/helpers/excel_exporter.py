@@ -45,8 +45,9 @@ def _ensure_openpyxl() -> None:
     """Ensure openpyxl is available, raise ImportError with helpful message if not."""
     if not OPENPYXL_AVAILABLE:
         raise ImportError(
-            "openpyxl is required for Excel export functionality. "
-            "Install it with: pip install openpyxl"
+            "openpyxl is required for Excel export. "
+            "Install it with: pip install 'myelin[excel]' "
+            "(or `uv sync --extra excel`)."
         )
 
 

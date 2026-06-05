@@ -90,14 +90,16 @@ class MyelinOutput(BaseModel):
             claim: Optional input Claim to include in the export
 
         Raises:
-            ImportError: If openpyxl is not installed
+            ImportError: If the `excel` extra is not installed. Install with
+                ``pip install 'myelin[excel]'`` (or ``uv sync --extra excel``).
 
         Example:
             >>> result = myelin.process(claim)
             >>> result.to_excel("output.xlsx", claim=claim)
         """
-        from myelin.helpers.excel_exporter import export_to_excel
+        from myelin.helpers.excel_exporter import _ensure_openpyxl, export_to_excel
 
+        _ensure_openpyxl()
         export_to_excel(self, filepath, claim=claim)
 
     def to_excel_bytes(self, claim: "Claim | None" = None) -> bytes:
@@ -113,14 +115,19 @@ class MyelinOutput(BaseModel):
             Excel file content as bytes
 
         Raises:
-            ImportError: If openpyxl is not installed
+            ImportError: If the `excel` extra is not installed. Install with
+                ``pip install 'myelin[excel]'`` (or ``uv sync --extra excel``).
 
         Example:
             >>> result = myelin.process(claim)
             >>> excel_bytes = result.to_excel_bytes(claim=claim)
         """
-        from myelin.helpers.excel_exporter import export_to_excel_bytes
+        from myelin.helpers.excel_exporter import (
+            _ensure_openpyxl,
+            export_to_excel_bytes,
+        )
 
+        _ensure_openpyxl()
         return export_to_excel_bytes(self, claim=claim)
 
 

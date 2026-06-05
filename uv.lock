@@ -402,15 +402,15 @@ wheels = [
 
 [[package]]
 name = "myelin"
-version = "0.1.0"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "jpype1" },
-    { name = "openpyxl" },
     { name = "pluggy" },
     { name = "pydantic" },
-    { name = "pytest" },
+    { name = "pypdf" },
+    { name = "reportlab" },
     { name = "requests" },
     { name = "sqlalchemy" },
     { name = "tqdm" },
@@ -444,14 +444,14 @@ dev = [
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.13.4" },
     { name = "jpype1", specifier = ">=1.6.0" },
-    { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "openpyxl", marker = "extra == 'all'", specifier = ">=3.1.0" },
-    { name = "openpyxl", marker = "extra == 'excel'", specifier = ">=3.1.0" },
+    { name = "openpyxl", marker = "extra == 'all'", specifier = ">=3.1.5" },
+    { name = "openpyxl", marker = "extra == 'excel'", specifier = ">=3.1.5" },
     { name = "pluggy", specifier = ">=1.5.0" },
     { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "pypdf", specifier = ">=6.9.2" },
     { name = "pypdf", marker = "extra == 'all'", specifier = ">=6.9.2" },
     { name = "pypdf", marker = "extra == 'pdf'", specifier = ">=6.9.2" },
-    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "reportlab", specifier = ">=4.4.10" },
     { name = "reportlab", marker = "extra == 'all'", specifier = ">=4.4.10" },
     { name = "reportlab", marker = "extra == 'pdf'", specifier = ">=4.4.10" },
     { name = "requests", specifier = ">=2.32.4" },

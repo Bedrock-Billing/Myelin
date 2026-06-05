@@ -62,6 +62,14 @@ By wrapping the official CMS software, Myelin ensures that you are using the sam
     ```bash
     pip install .[pdf]
     ```
+    To use the `to_excel()` / `to_excel_bytes()` exporters, install the optional Excel dependencies:
+    ```bash
+    pip install .[excel]
+    ```
+    Or install everything at once with the `all` extra:
+    ```bash
+    pip install .[all]
+    ```
     or, if you use [uv](https://github.com/astral-sh/uv):
     ```bash
     uv sync
@@ -69,6 +77,14 @@ By wrapping the official CMS software, Myelin ensures that you are using the sam
     with PDF support:
     ```bash
     uv sync --extra pdf
+    ```
+    with Excel support:
+    ```bash
+    uv sync --extra excel
+    ```
+    or all extras:
+    ```bash
+    uv sync --extra all
     ```
     dev dependencies:
     ```bash
@@ -361,6 +377,28 @@ write_ub04_calibration_pdf("ub04-calibration.pdf")
 ```
 
 UB-04 PDF support requires the optional `pdf` extra.
+
+### Excel Export
+
+Every `MyelinOutput` can be exported to a multi-sheet Excel workbook for
+sharing with business users. Each pricer / editor / grouper result is written
+to its own sheet, with a `Summary` sheet up front containing the high-level
+metrics from every module.
+
+```python
+from myelin import Myelin, MyelinOutput
+from myelin.helpers.claim_examples import claim_example
+
+with Myelin() as myelin:
+    claim = claim_example()
+    results = myelin.process(claim)
+    results.to_excel("output.xlsx", claim=claim)
+
+    # Or grab the bytes directly (e.g. for an HTTP response)
+    excel_bytes = results.to_excel_bytes(claim=claim)
+```
+
+Excel export support requires the optional `excel` extra (`pip install myelin[excel]`).
 
 ## Project Structure
 
