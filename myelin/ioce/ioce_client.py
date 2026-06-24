@@ -364,17 +364,8 @@ class IoceClient:
         disposition_attr: str,
         edit_list_attr: str,
         internal_version: int,
+        edit_disposition_desc_attr: str | None = None,
     ) -> None:
-        """
-        Generic function to enrich disposition and edit descriptions.
-
-        Args:
-            result: The result object to enrich
-            disposition_type_id: The disposition type ID (e.g., "1", "2", "3", etc.)
-            disposition_attr: The disposition attribute name (e.g., "claim_disposition")
-            edit_list_attr: The edit list attribute name (e.g., "claim_rejection_edit_list")
-            internal_version: The internal version for lookups
-        """
         disposition_value: str | None = getattr(result, disposition_attr, None)
         if disposition_value:
             if disposition_value in ("", "0"):
@@ -397,15 +388,24 @@ class IoceClient:
                 str(disp_value_desc) if disp_value_desc else "",
             )
 
-            # Enrich edit descriptions
             edit_list: list[IoceOutputEdit] = getattr(result, edit_list_attr, [])
+
+            if edit_disposition_desc_attr and edit_list:
+                edit_disp_desc = self.ioce_component.getEditDispositionDescription(
+                    disposition_value, internal_version
+                )
+                setattr(
+                    result,
+                    edit_disposition_desc_attr,
+                    str(edit_disp_desc) if edit_disp_desc else "",
+                )
+
             for edit in edit_list:
                 edit_desc = self.ioce_component.getEditDescription(
                     str(int(edit.edit)), internal_version
                 )
                 edit.description = str(edit_desc) if edit_desc else ""
 
-    # TODO: More descriptions available in the IOCE component
     def append_descriptions(self, result: IoceOutput) -> IoceOutput:
         """
         Get human-readable descriptions for codes and values in the result.
@@ -433,25 +433,51 @@ class IoceClient:
                     str(claim_flag_desc) if claim_flag_desc else ""
                 )
 
-            # Enrich disposition and edit descriptions
             disposition_configs = [
-                ("1", "claim_disposition", "claim_rejection_edit_list"),
-                ("2", "claim_rejection_disposition", "claim_rejection_edit_list"),
-                ("3", "claim_denial_disposition", "claim_denial_edit_list"),
+                ("1", "claim_disposition", "claim_rejection_edit_list", None),
+                (
+                    "2",
+                    "claim_rejection_disposition",
+                    "claim_rejection_edit_list",
+                    "claim_rejection_edit_disposition_description",
+                ),
+                (
+                    "3",
+                    "claim_denial_disposition",
+                    "claim_denial_edit_list",
+                    "claim_denial_edit_disposition_description",
+                ),
                 (
                     "4",
                     "claim_return_to_provider_disposition",
                     "claim_return_to_provider_edit_list",
+                    "claim_return_to_provider_edit_disposition_description",
                 ),
-                ("5", "claim_suspension_disposition", "claim_suspension_edit_list"),
-                ("6", "line_rejection_disposition", "line_rejection_edit_list"),
-                ("7", "line_denial_disposition", "line_denial_edit_list"),
+                (
+                    "5",
+                    "claim_suspension_disposition",
+                    "claim_suspension_edit_list",
+                    "claim_suspension_edit_disposition_description",
+                ),
+                (
+                    "6",
+                    "line_rejection_disposition",
+                    "line_rejection_edit_list",
+                    "line_rejection_edit_disposition_description",
+                ),
+                (
+                    "7",
+                    "line_denial_disposition",
+                    "line_denial_edit_list",
+                    "line_denial_edit_disposition_description",
+                ),
             ]
 
             for (
                 disposition_type_id,
                 disposition_attr,
                 edit_list_attr,
+                edit_disposition_desc_attr,
             ) in disposition_configs:
                 self._enrich_disposition_and_edits(
                     result,
@@ -459,6 +485,7 @@ class IoceClient:
                     disposition_attr,
                     edit_list_attr,
                     internal_version,
+                    edit_disposition_desc_attr,
                 )
 
             for item in result.reason_for_visit_diagnosis_code_list:
@@ -505,6 +532,52 @@ class IoceClient:
                         str(status_desc) if status_desc else ""
                     )
 
+                if line.action_flag_output:
+                    action_desc = self.ioce_component.getLineItemActionFlagDescription(
+                        line.action_flag_output, internal_version
+                    )
+                    line.action_flag_output_description = (
+                        str(action_desc) if action_desc else ""
+                    )
+
+                if line.rejection_denial_flag:
+                    rd_desc = (
+                        self.ioce_component.getLineItemRejectionDenialFlagDescription(
+                            line.rejection_denial_flag, internal_version
+                        )
+                    )
+                    line.rejection_denial_flag_description = (
+                        str(rd_desc) if rd_desc else ""
+                    )
+
+                if line.payment_method_flag:
+                    pm_desc = self.ioce_component.getPaymentMethodFlagDescription(
+                        line.payment_method_flag, internal_version
+                    )
+                    line.payment_method_flag_description = (
+                        str(pm_desc) if pm_desc else ""
+                    )
+
+                if line.payment_indicator:
+                    pi_desc = self.ioce_component.getPaymentIndicatorDescription(
+                        line.payment_indicator, internal_version
+                    )
+                    line.payment_indicator_description = str(pi_desc) if pi_desc else ""
+
+                if line.revenue_code:
+                    rev_desc = self.ioce_component.getRevenueCodeDescription(
+                        line.revenue_code, internal_version
+                    )
+                    line.revenue_code_description = str(rev_desc) if rev_desc else ""
+
+                if line.discounting_formula is not None:
+                    disc_desc = self.ioce_component.getDiscountFormulaDescription(
+                        str(line.discounting_formula), internal_version
+                    )
+                    line.discounting_formula_description = (
+                        str(disc_desc) if disc_desc else ""
+                    )
+
                 if line.hcpcs_edit_list:
                     for item in line.hcpcs_edit_list:
                         edit_desc = self.ioce_component.getEditDescription(
@@ -528,6 +601,11 @@ class IoceClient:
 
                 if line.hcpcs_modifier_input_list:
                     for item in line.hcpcs_modifier_input_list:
+                        if item.hcpcs_modifier:
+                            mod_desc = self.ioce_component.getHcpcsModifierDescription(
+                                item.hcpcs_modifier, internal_version
+                            )
+                            item.description = str(mod_desc) if mod_desc else ""
                         if item.edit_list:
                             for edit in item.edit_list:
                                 edit_desc = self.ioce_component.getEditDescription(
@@ -537,6 +615,11 @@ class IoceClient:
 
                 if line.hcpcs_modifier_output_list:
                     for item in line.hcpcs_modifier_output_list:
+                        if item.hcpcs_modifier:
+                            mod_desc = self.ioce_component.getHcpcsModifierDescription(
+                                item.hcpcs_modifier, internal_version
+                            )
+                            item.description = str(mod_desc) if mod_desc else ""
                         if item.edit_list:
                             for edit in item.edit_list:
                                 edit_desc = self.ioce_component.getEditDescription(

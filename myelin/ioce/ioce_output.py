@@ -133,6 +133,7 @@ class IoceOutputHcpcsModifier(BaseModel):
     """Output for HCPCS modifiers with associated edits"""
 
     hcpcs_modifier: str = ""
+    description: str = ""
     edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
     def from_java(self, java_obj: Any) -> "IoceOutputHcpcsModifier":
@@ -177,8 +178,11 @@ class IoceOutputLineItem(BaseModel):
     action_flag_input: str = ""
 
     action_flag_output: str = ""
+    action_flag_output_description: str = ""
     rejection_denial_flag: str = ""
+    rejection_denial_flag_description: str = ""
     payment_method_flag: str = ""
+    payment_method_flag_description: str = ""
     hcpcs_apc: str = ""
     hcpcs_apc_description: str = ""
     payment_apc: str = ""
@@ -187,10 +191,13 @@ class IoceOutputLineItem(BaseModel):
     status_indicator: str = ""
     status_indicator_description: str = ""
     payment_indicator: str = ""
+    payment_indicator_description: str = ""
     packaging_flag: IoceOutputFlag = Field(default_factory=IoceOutputFlag)
     payment_adjustment_flag01: IoceOutputFlag = Field(default_factory=IoceOutputFlag)
     payment_adjustment_flag02: IoceOutputFlag = Field(default_factory=IoceOutputFlag)
     discounting_formula: int | None = None
+    discounting_formula_description: str = ""
+    revenue_code_description: str = ""
     composite_adjustment_flag: str = ""
 
     hcpcs_modifier_input_list: list[IoceOutputHcpcsModifier] = Field(
@@ -354,11 +361,13 @@ class IoceOutput(BaseModel):
     claim_rejection_disposition_description: str = ""
     claim_rejection_disposition_value_description: str = ""
     claim_rejection_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
+    claim_rejection_edit_disposition_description: str = ""
 
     claim_denial_disposition: str = ""
     claim_denial_disposition_description: str = ""
     claim_denial_disposition_value_description: str = ""
     claim_denial_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
+    claim_denial_edit_disposition_description: str = ""
 
     claim_return_to_provider_disposition: str = ""
     claim_return_to_provider_disposition_description: str = ""
@@ -366,21 +375,25 @@ class IoceOutput(BaseModel):
     claim_return_to_provider_edit_list: list[IoceOutputEdit] = Field(
         default_factory=list
     )
+    claim_return_to_provider_edit_disposition_description: str = ""
 
     claim_suspension_disposition: str = ""
     claim_suspension_disposition_description: str = ""
     claim_suspension_disposition_value_description: str = ""
     claim_suspension_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
+    claim_suspension_edit_disposition_description: str = ""
 
     line_rejection_disposition: str = ""
     line_rejection_disposition_description: str = ""
     line_rejection_disposition_value_description: str = ""
     line_rejection_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
+    line_rejection_edit_disposition_description: str = ""
 
     line_denial_disposition: str = ""
     line_denial_disposition_description: str = ""
     line_denial_disposition_value_description: str = ""
     line_denial_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
+    line_denial_edit_disposition_description: str = ""
 
     condition_code_output_list: list[str] = Field(default_factory=list)
     value_code_output_list: list[IoceOutputValueCode] = Field(default_factory=list)

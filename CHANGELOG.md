@@ -59,6 +59,14 @@ tools via JPype1.
   workloads.
 - ~~**Java stub generation** (`create_stubs.py`) for IDE type checking of JPype
   interop.~~ This effort was abandoned, may revisit in the future.
+- **New IOCE fields added**
+  - IoceOutputHcpcsModifier.description — for modifier descriptions on both input and output modifier lists
+  - IoceOutputLineItem: action_flag_output_description, rejection_denial_flag_description, payment_method_flag_description, payment_indicator_description, revenue_code_description, discounting_formula_description
+  - IoceOutput: claim_rejection_edit_disposition_description, claim_denial_edit_disposition_description, claim_return_to_provider_edit_disposition_description, claim_suspension_edit_disposition_description, line_rejection_edit_disposition_description, line_denial_edit_disposition_description
+- **New descriptions added to ICOE output**
+  - _enrich_disposition_and_edits now calls getEditDispositionDescription per disposition group when edits are present
+  - Line items now also call: getLineItemActionFlagDescription, getLineItemDenialRejectionFlagDescription, getPaymentMethodFlagDescription, getPaymentIndicatorDescription, getRevenueCodeDescription, getDiscountFormulaDescription
+  - Both input and output HCPCS modifier lists now call getHcpcsModifierDescription per modifier in addition to the existing edit descriptions
 
 ### Changed
 
