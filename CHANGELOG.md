@@ -57,8 +57,8 @@ tools via JPype1.
 - **JVM lifecycle management** - thread-safe startup/shutdown, context-manager
   support (`with Myelin(...) as m:`), and clean integration with multi-process
   workloads.
-- **Java stub generation** (`create_stubs.py`) for IDE type checking of JPype
-  interop.
+- ~~**Java stub generation** (`create_stubs.py`) for IDE type checking of JPype
+  interop.~~ This effort was abandoned, may revisit in the future.
 
 ### Changed
 

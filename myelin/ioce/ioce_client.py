@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Any
 
-import jpype  # pyright: ignore[reportMissingTypeStubs]  # pyright: ignore[reportMissingTypeStubs]
+import jpype  # pyright: ignore[reportMissingTypeStubs]
 
 from myelin.helpers.utils import JavaRuntimeError, handle_java_exceptions
 from myelin.input.claim import (
@@ -11,20 +12,6 @@ from myelin.input.claim import (
     ValueCode,
 )
 from myelin.ioce.ioce_output import IoceOutput, IoceOutputEdit
-
-# Provides stubs during TYPE_CHECKING and protocol classes at runtime
-# Provides stubs during TYPE_CHECKING and protocol classes at runtime
-from myelin.ioce.ioce_types import (
-    IoceClaim,
-    IoceComponent,
-    OceClaim,
-    OceClaimFactory,
-    OceDiagnosisCode,
-    OceHcpcsModifier,
-    OceLineItem,
-    OceProcessingInformation,
-    OceValueCode,
-)
 from myelin.plugins import apply_client_methods, run_client_load_classes
 
 
@@ -49,36 +36,32 @@ class IoceClient:
     def load_classes(self) -> None:
         """Load all required Java classes and components"""
         try:
-            self.ioce_component_class: type[IoceComponent] = jpype.JClass(
-                "gov.cms.oce.IoceComponent"
-            )  # pyright: ignore[reportAttributeAccessIssue]
-            self.ioce_claim_class: type[IoceClaim] = jpype.JClass(
-                "gov.cms.oce.IoceClaim"
-            )  # pyright: ignore[reportAttributeAccessIssue]
-            self.oce_claim_factory_class: type[OceClaimFactory] = jpype.JClass(
+            self.ioce_component_class: Any = jpype.JClass("gov.cms.oce.IoceComponent")
+            self.ioce_claim_class: Any = jpype.JClass("gov.cms.oce.IoceClaim")
+            self.oce_claim_factory_class: Any = jpype.JClass(
                 "gov.cms.oce.model.external.OceClaimFactory"
-            )  # pyright: ignore[reportAttributeAccessIssue]
-            self.oce_claim_class: type[OceClaim] = jpype.JClass(
+            )
+            self.oce_claim_class: Any = jpype.JClass(
                 "gov.cms.oce.model.external.OceClaim"
-            )  # pyright: ignore[reportAttributeAccessIssue]
-            self.oce_line_item_class: type[OceLineItem] = jpype.JClass(
+            )
+            self.oce_line_item_class: Any = jpype.JClass(
                 "gov.cms.oce.model.external.OceLineItem"
-            )  # pyright: ignore[reportAttributeAccessIssue]
-            self.oce_diagnosis_code_class: type[OceDiagnosisCode] = jpype.JClass(
+            )
+            self.oce_diagnosis_code_class: Any = jpype.JClass(
                 "gov.cms.oce.model.external.OceDiagnosisCode"
-            )  # pyright: ignore[reportAttributeAccessIssue]
-            self.oce_hcpcs_modifier_class: type[OceHcpcsModifier] = jpype.JClass(
+            )
+            self.oce_hcpcs_modifier_class: Any = jpype.JClass(
                 "gov.cms.oce.model.external.OceHcpcsModifier"
-            )  # pyright: ignore[reportAttributeAccessIssue]
-            self.oce_value_code_class: type[OceValueCode] = jpype.JClass(
+            )
+            self.oce_value_code_class: Any = jpype.JClass(
                 "gov.cms.oce.model.external.OceValueCode"
-            )  # pyright: ignore[reportAttributeAccessIssue]
-            self.oce_processing_info_class: type[OceProcessingInformation] = (
-                jpype.JClass("gov.cms.oce.model.external.OceProcessingInformation")
-            )  # pyright: ignore[reportAttributeAccessIssue]
+            )
+            self.oce_processing_info_class: Any = jpype.JClass(
+                "gov.cms.oce.model.external.OceProcessingInformation"
+            )
 
-            self.factory: OceClaimFactory = self.oce_claim_factory_class.getInstance()
-            self.ioce_component: IoceComponent = self.ioce_component_class()
+            self.factory: Any = self.oce_claim_factory_class.getInstance()
+            self.ioce_component: Any = self.ioce_component_class()
 
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Ioce Java classes: {e}")
@@ -123,9 +106,7 @@ class IoceClient:
         else:
             return "0"
 
-    def create_diagnosis_code(
-        self, dx_code: DiagnosisCode | None
-    ) -> OceDiagnosisCode | None:
+    def create_diagnosis_code(self, dx_code: DiagnosisCode | None) -> Any:
         """Create Java OceDiagnosisCode from Python DiagnosisCode"""
         if not dx_code or not dx_code.code:
             return None
@@ -143,21 +124,19 @@ class IoceClient:
 
         return self.factory.createDiagnosisCode(clean_code, poa_str)
 
-    def create_hcpcs_modifier(
-        self, modifier_str: str | None
-    ) -> OceHcpcsModifier | None:
+    def create_hcpcs_modifier(self, modifier_str: str | None) -> Any:
         """Create Java OceHcpcsModifier from string"""
         if modifier_str is None or modifier_str == "":
             return None
         return self.factory.createHcpcsModifier(str(modifier_str))
 
-    def create_value_code(self, value_code: ValueCode) -> OceValueCode:
+    def create_value_code(self, value_code: ValueCode) -> Any:
         """Create Java OceValueCode from Python ValueCode"""
         # Format amount as 9-character string with leading zeros
         amount_str = f"{int(value_code.amount * 100):09d}"  # Convert to cents
         return self.factory.createValueCode(value_code.code, amount_str)
 
-    def create_line_item(self, line_item: LineItem) -> OceLineItem:
+    def create_line_item(self, line_item: LineItem) -> Any:
         """Create Java OceLineItem from Python LineItem"""
 
         java_line = self.factory.createLineItem()
@@ -253,7 +232,7 @@ class IoceClient:
                 java_line.addContractorEditBypass("-1")
         return java_line
 
-    def create_oce_claim(self, claim: Claim) -> OceClaim:
+    def create_oce_claim(self, claim: Claim) -> Any:
         """Create Java OceClaim from Python Claim"""
         oce_claim = self.factory.createClaim()
 

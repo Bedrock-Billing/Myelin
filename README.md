@@ -93,15 +93,6 @@ By wrapping the official CMS software, Myelin ensures that you are using the sam
 3.  **Ensure Java is installed and available in your PATH.**
     - Check with: `java -version`
 
-## Dev Env Setup
-To get proper type checking in your IDE you will need to generate stubs for all the java classes.
-```bash
-cd myelin
-uv run create_stubs.py
-```
-**Note:** This process relies on the presence of the JAR files that are downloaded at runtime. Run the [example](#usage)
-first then generate the stubs.
-
 ## Testing
 ```bash
 pytest tests/

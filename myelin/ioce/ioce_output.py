@@ -1,19 +1,10 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from myelin.helpers.utils import JavaRuntimeError
-
-# Provides stubs during TYPE_CHECKING and protocol classes at runtime
-from myelin.ioce.ioce_types import (
-    OceClaim,
-    OceDiagnosisCode,
-    OceHcpcsModifier,
-    OceLineItem,
-    OceProcessingInformation,
-    OceValueCode,
-)
 
 
 class IoceReturnCode(BaseModel):
@@ -81,9 +72,7 @@ class IoceProcessingInformation(BaseModel):
     debug_flag: str = ""
     comment_data: str = ""
 
-    def from_java(
-        self, java_obj: OceProcessingInformation | None
-    ) -> "IoceProcessingInformation":
+    def from_java(self, java_obj: Any) -> "IoceProcessingInformation":
         if not java_obj:
             return self
 
@@ -121,7 +110,7 @@ class IoceOutputDiagnosisCode(BaseModel):
     present_on_admission: str = ""
     edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
-    def from_java(self, java_obj: OceDiagnosisCode | None) -> "IoceOutputDiagnosisCode":
+    def from_java(self, java_obj: Any) -> "IoceOutputDiagnosisCode":
         if not java_obj:
             return self
 
@@ -146,7 +135,7 @@ class IoceOutputHcpcsModifier(BaseModel):
     hcpcs_modifier: str = ""
     edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
-    def from_java(self, java_obj: OceHcpcsModifier | None) -> "IoceOutputHcpcsModifier":
+    def from_java(self, java_obj: Any) -> "IoceOutputHcpcsModifier":
         if not java_obj:
             return self
 
@@ -167,7 +156,7 @@ class IoceOutputValueCode(BaseModel):
     code: str = ""
     value: str = ""
 
-    def from_java(self, java_obj: OceValueCode | None) -> "IoceOutputValueCode":
+    def from_java(self, java_obj: Any) -> "IoceOutputValueCode":
         if not java_obj:
             return self
 
@@ -215,7 +204,7 @@ class IoceOutputLineItem(BaseModel):
     revenue_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
     service_date_edit_list: list[IoceOutputEdit] = Field(default_factory=list)
 
-    def from_java(self, java_obj: OceLineItem | None) -> "IoceOutputLineItem":
+    def from_java(self, java_obj: Any) -> "IoceOutputLineItem":
         if not java_obj:
             return self
 
@@ -408,7 +397,7 @@ class IoceOutput(BaseModel):
 
     line_item_list: list[IoceOutputLineItem] = Field(default_factory=list)
 
-    def from_java(self, java_claim: OceClaim | None) -> "IoceOutput":
+    def from_java(self, java_claim: Any) -> "IoceOutput":
         """Extract all output data from the processed Java OceClaim object"""
         if not java_claim:
             return self

@@ -25,9 +25,7 @@ idna==3.11
 iniconfig==2.3.0
     # via pytest
 jpype1==1.6.0
-    # via
-    #   myelin (pyproject.toml)
-    #   stubgenj
+    # via myelin (pyproject.toml)
 mypy==1.18.2
     # via myelin (pyproject.toml:dev)
 mypy-extensions==1.1.0
@@ -71,8 +69,6 @@ soupsieve==2.8
     # via beautifulsoup4
 sqlalchemy==2.0.44
     # via myelin (pyproject.toml)
-stubgenj==0.2.12
-    # via myelin (pyproject.toml:dev)
 tqdm==4.67.1
     # via myelin (pyproject.toml)
 typing-extensions==4.15.0
