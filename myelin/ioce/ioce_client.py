@@ -311,12 +311,10 @@ class IoceClient:
             java_principal_dx = self.create_diagnosis_code(claim.principal_dx)
             if java_principal_dx:
                 oce_claim.setPrincipalDiagnosisCode(java_principal_dx)
-
-        # Add reason for visit diagnosis (typically same as principal for outpatient)
-        if claim.principal_dx:
-            java_rfv_dx = self.create_diagnosis_code(claim.principal_dx)
-            if java_rfv_dx:
-                oce_claim.addReasonForVisitDiagnosisCode(java_rfv_dx)
+                # IOCE enriches the diagnosis object with edits during processing.
+                # Reuse the principal object for RFV so both outputs expose the same
+                # edit list for outpatient claims where RFV defaults to principal.
+                oce_claim.addReasonForVisitDiagnosisCode(java_principal_dx)
 
         if claim.secondary_dxs:
             for secondary_dx in claim.secondary_dxs:
@@ -370,41 +368,96 @@ class IoceClient:
         if disposition_value:
             if disposition_value in ("", "0"):
                 return
-            disp_desc = self.ioce_component.getClaimDispositionDescription(
-                disposition_type_id, internal_version
+            disp_desc = self._description_with_latest(
+                "getClaimDispositionDescription",
+                "getLatestClaimDispositionDescription",
+                disposition_type_id,
+                internal_version,
             )
             setattr(
                 result,
                 f"{disposition_attr}_description",
-                str(disp_desc) if disp_desc else "",
+                disp_desc,
             )
 
-            disp_value_desc = self.ioce_component.getClaimDispositionValueDescription(
-                disposition_type_id, disposition_value, internal_version
+            disp_value_desc = self._description_with_latest(
+                "getClaimDispositionValueDescription",
+                "getLatestClaimDispositionValueDescription",
+                disposition_type_id,
+                disposition_value,
+                internal_version,
             )
             setattr(
                 result,
                 f"{disposition_attr}_value_description",
-                str(disp_value_desc) if disp_value_desc else "",
+                disp_value_desc,
             )
 
             edit_list: list[IoceOutputEdit] = getattr(result, edit_list_attr, [])
 
             if edit_disposition_desc_attr and edit_list:
-                edit_disp_desc = self.ioce_component.getEditDispositionDescription(
-                    disposition_value, internal_version
+                edit_disp_desc = self._description_with_latest(
+                    "getEditDispositionDescription",
+                    "getLatestEditDispositionDescription",
+                    disposition_value,
+                    internal_version,
                 )
                 setattr(
                     result,
                     edit_disposition_desc_attr,
-                    str(edit_disp_desc) if edit_disp_desc else "",
+                    edit_disp_desc,
                 )
 
             for edit in edit_list:
-                edit_desc = self.ioce_component.getEditDescription(
-                    str(int(edit.edit)), internal_version
+                edit_desc = self._code_description(
+                    "getEditDescription",
+                    "getLatestEditDescription",
+                    str(int(edit.edit)),
+                    internal_version,
                 )
-                edit.description = str(edit_desc) if edit_desc else ""
+                edit.description = edit_desc
+
+    def _description_with_latest(
+        self,
+        method_name: str,
+        latest_method_name: str,
+        *args,
+    ) -> str:
+        description = getattr(self.ioce_component, method_name)(*args)
+        if description:
+            return str(description)
+        latest_args = args[:-1] if args and isinstance(args[-1], int) else args
+        latest_description = getattr(self.ioce_component, latest_method_name)(
+            *latest_args
+        )
+        return str(latest_description) if latest_description else ""
+
+    def _code_description(
+        self,
+        method_name: str,
+        latest_method_name: str,
+        code: str,
+        internal_version: int,
+        *,
+        normalize=None,
+    ) -> str:
+        if not code:
+            return ""
+        normalized_code = normalize(code) if normalize else code
+        for candidate in dict.fromkeys((code, normalized_code)):
+            description = self._description_with_latest(
+                method_name,
+                latest_method_name,
+                candidate,
+                internal_version,
+            )
+            if description:
+                return description
+        return ""
+
+    @staticmethod
+    def _apc_code(code: str) -> str:
+        return code.zfill(5) if code.isdigit() else code
 
     def append_descriptions(self, result: IoceOutput) -> IoceOutput:
         """
@@ -426,12 +479,13 @@ class IoceClient:
 
             # Get claim processed flag description
             if result.claim_processed_flag:
-                claim_flag_desc = self.ioce_component.getClaimProcessedFlagDescription(
-                    result.claim_processed_flag, internal_version
+                claim_flag_desc = self._code_description(
+                    "getClaimProcessedFlagDescription",
+                    "getLatestClaimProcessedFlagDescription",
+                    result.claim_processed_flag,
+                    internal_version,
                 )
-                result.claim_processed_flag_description = (
-                    str(claim_flag_desc) if claim_flag_desc else ""
-                )
+                result.claim_processed_flag_description = claim_flag_desc
 
             disposition_configs = [
                 ("1", "claim_disposition", "claim_rejection_edit_list", None),
@@ -490,196 +544,254 @@ class IoceClient:
 
             for item in result.reason_for_visit_diagnosis_code_list:
                 if item.diagnosis:
-                    diagnosis_desc = self.ioce_component.getDiagnosisDescription(
-                        item.diagnosis, internal_version
+                    diagnosis_desc = self._code_description(
+                        "getDiagnosisDescription",
+                        "getLatestDiagnosisDescription",
+                        item.diagnosis,
+                        internal_version,
                     )
-                    item.description = str(diagnosis_desc) if diagnosis_desc else ""
+                    item.description = diagnosis_desc
 
                 if item.edit_list:
                     for edit in item.edit_list:
-                        edit_desc = self.ioce_component.getEditDescription(
-                            str(int(edit.edit)), internal_version
+                        edit_desc = self._code_description(
+                            "getEditDescription",
+                            "getLatestEditDescription",
+                            str(int(edit.edit)),
+                            internal_version,
                         )
-                        edit.description = str(edit_desc) if edit_desc else ""
+                        edit.description = edit_desc
 
             # Get line item descriptions
             for i, line in enumerate(result.line_item_list):
                 if line.hcpcs:
-                    hcpcs_desc = self.ioce_component.getHcpcsDescription(
-                        line.hcpcs, internal_version
+                    hcpcs_desc = self._code_description(
+                        "getHcpcsDescription",
+                        "getLatestHcpcsDescription",
+                        line.hcpcs,
+                        internal_version,
                     )
-                    line.hcpcs_description = str(hcpcs_desc) if hcpcs_desc else ""
+                    line.hcpcs_description = hcpcs_desc
 
                 if line.hcpcs_apc:
-                    apc_desc = self.ioce_component.getApcDescription(
-                        line.hcpcs_apc, internal_version
+                    apc_desc = self._code_description(
+                        "getApcDescription",
+                        "getLatestApcDescription",
+                        line.hcpcs_apc,
+                        internal_version,
+                        normalize=self._apc_code,
                     )
-                    line.hcpcs_apc_description = str(apc_desc) if apc_desc else ""
+                    line.hcpcs_apc_description = apc_desc
 
                 if line.payment_apc:
-                    payment_apc_desc = self.ioce_component.getApcDescription(
-                        line.payment_apc, internal_version
+                    payment_apc_desc = self._code_description(
+                        "getApcDescription",
+                        "getLatestApcDescription",
+                        line.payment_apc,
+                        internal_version,
+                        normalize=self._apc_code,
                     )
-                    line.payment_apc_description = (
-                        str(payment_apc_desc) if payment_apc_desc else ""
-                    )
+                    line.payment_apc_description = payment_apc_desc
 
                 if line.status_indicator:
-                    status_desc = self.ioce_component.getStatusIndicatorDescription(
-                        line.status_indicator, internal_version
+                    status_desc = self._code_description(
+                        "getStatusIndicatorDescription",
+                        "getLatestStatusIndicatorDescription",
+                        line.status_indicator,
+                        internal_version,
                     )
-                    line.status_indicator_description = (
-                        str(status_desc) if status_desc else ""
-                    )
+                    line.status_indicator_description = status_desc
 
                 if line.action_flag_output:
-                    action_desc = self.ioce_component.getLineItemActionFlagDescription(
-                        line.action_flag_output, internal_version
+                    action_desc = self._code_description(
+                        "getLineItemActionFlagDescription",
+                        "getLatestLineItemActionFlagDescription",
+                        line.action_flag_output,
+                        internal_version,
                     )
-                    line.action_flag_output_description = (
-                        str(action_desc) if action_desc else ""
-                    )
+                    line.action_flag_output_description = action_desc
 
                 if line.rejection_denial_flag:
-                    rd_desc = (
-                        self.ioce_component.getLineItemRejectionDenialFlagDescription(
-                            line.rejection_denial_flag, internal_version
-                        )
+                    rd_desc = self._code_description(
+                        "getLineItemRejectionDenialFlagDescription",
+                        "getLatestLineItemRejectionDenialFlagDescription",
+                        line.rejection_denial_flag,
+                        internal_version,
                     )
-                    line.rejection_denial_flag_description = (
-                        str(rd_desc) if rd_desc else ""
-                    )
+                    line.rejection_denial_flag_description = rd_desc
 
                 if line.payment_method_flag:
-                    pm_desc = self.ioce_component.getPaymentMethodFlagDescription(
-                        line.payment_method_flag, internal_version
+                    pm_desc = self._code_description(
+                        "getPaymentMethodFlagDescription",
+                        "getLatestPaymentMethodFlagDescription",
+                        line.payment_method_flag,
+                        internal_version,
                     )
-                    line.payment_method_flag_description = (
-                        str(pm_desc) if pm_desc else ""
-                    )
+                    line.payment_method_flag_description = pm_desc
 
                 if line.payment_indicator:
-                    pi_desc = self.ioce_component.getPaymentIndicatorDescription(
-                        line.payment_indicator, internal_version
+                    pi_desc = self._code_description(
+                        "getPaymentIndicatorDescription",
+                        "getLatestPaymentIndicatorDescription",
+                        line.payment_indicator,
+                        internal_version,
                     )
-                    line.payment_indicator_description = str(pi_desc) if pi_desc else ""
+                    line.payment_indicator_description = pi_desc
 
                 if line.revenue_code:
-                    rev_desc = self.ioce_component.getRevenueCodeDescription(
-                        line.revenue_code, internal_version
+                    rev_desc = self._code_description(
+                        "getRevenueCodeDescription",
+                        "getLatestRevenueCodeDescription",
+                        line.revenue_code,
+                        internal_version,
                     )
-                    line.revenue_code_description = str(rev_desc) if rev_desc else ""
+                    line.revenue_code_description = rev_desc
 
                 if line.discounting_formula is not None:
-                    disc_desc = self.ioce_component.getDiscountFormulaDescription(
-                        str(line.discounting_formula), internal_version
+                    disc_desc = self._code_description(
+                        "getDiscountFormulaDescription",
+                        "getLatestDiscountFormulaDescription",
+                        str(line.discounting_formula),
+                        internal_version,
                     )
-                    line.discounting_formula_description = (
-                        str(disc_desc) if disc_desc else ""
-                    )
+                    line.discounting_formula_description = disc_desc
 
                 if line.hcpcs_edit_list:
                     for item in line.hcpcs_edit_list:
-                        edit_desc = self.ioce_component.getEditDescription(
-                            str(int(item.edit)), internal_version
+                        edit_desc = self._code_description(
+                            "getEditDescription",
+                            "getLatestEditDescription",
+                            str(int(item.edit)),
+                            internal_version,
                         )
-                        item.description = str(edit_desc) if edit_desc else ""
+                        item.description = edit_desc
 
                 if line.revenue_edit_list:
                     for item in line.revenue_edit_list:
-                        edit_desc = self.ioce_component.getEditDescription(
-                            str(int(item.edit)), internal_version
+                        edit_desc = self._code_description(
+                            "getEditDescription",
+                            "getLatestEditDescription",
+                            str(int(item.edit)),
+                            internal_version,
                         )
-                        item.description = str(edit_desc) if edit_desc else ""
+                        item.description = edit_desc
 
                 if line.service_date_edit_list:
                     for item in line.service_date_edit_list:
-                        edit_desc = self.ioce_component.getEditDescription(
-                            str(int(item.edit)), internal_version
+                        edit_desc = self._code_description(
+                            "getEditDescription",
+                            "getLatestEditDescription",
+                            str(int(item.edit)),
+                            internal_version,
                         )
-                        item.description = str(edit_desc) if edit_desc else ""
+                        item.description = edit_desc
 
                 if line.hcpcs_modifier_input_list:
                     for item in line.hcpcs_modifier_input_list:
                         if item.hcpcs_modifier:
-                            mod_desc = self.ioce_component.getHcpcsModifierDescription(
-                                item.hcpcs_modifier, internal_version
+                            mod_desc = self._code_description(
+                                "getHcpcsModifierDescription",
+                                "getLatestHcpcsModifierDescription",
+                                item.hcpcs_modifier,
+                                internal_version,
                             )
-                            item.description = str(mod_desc) if mod_desc else ""
+                            item.description = mod_desc
                         if item.edit_list:
                             for edit in item.edit_list:
-                                edit_desc = self.ioce_component.getEditDescription(
-                                    str(int(edit.edit)), internal_version
+                                edit_desc = self._code_description(
+                                    "getEditDescription",
+                                    "getLatestEditDescription",
+                                    str(int(edit.edit)),
+                                    internal_version,
                                 )
-                                edit.description = str(edit_desc) if edit_desc else ""
+                                edit.description = edit_desc
 
                 if line.hcpcs_modifier_output_list:
                     for item in line.hcpcs_modifier_output_list:
                         if item.hcpcs_modifier:
-                            mod_desc = self.ioce_component.getHcpcsModifierDescription(
-                                item.hcpcs_modifier, internal_version
+                            mod_desc = self._code_description(
+                                "getHcpcsModifierDescription",
+                                "getLatestHcpcsModifierDescription",
+                                item.hcpcs_modifier,
+                                internal_version,
                             )
-                            item.description = str(mod_desc) if mod_desc else ""
+                            item.description = mod_desc
                         if item.edit_list:
                             for edit in item.edit_list:
-                                edit_desc = self.ioce_component.getEditDescription(
-                                    str(int(edit.edit)), internal_version
+                                edit_desc = self._code_description(
+                                    "getEditDescription",
+                                    "getLatestEditDescription",
+                                    str(int(edit.edit)),
+                                    internal_version,
                                 )
-                                edit.description = str(edit_desc) if edit_desc else ""
+                                edit.description = edit_desc
 
                 if line.packaging_flag:
-                    flag_desc = self.ioce_component.getPackagingFlagDescription(
-                        line.packaging_flag.flag, internal_version
+                    flag_desc = self._code_description(
+                        "getPackagingFlagDescription",
+                        "getLatestPackagingFlagDescription",
+                        line.packaging_flag.flag,
+                        internal_version,
                     )
-                    line.packaging_flag.description = (
-                        str(flag_desc) if flag_desc else ""
-                    )
+                    line.packaging_flag.description = flag_desc
 
                 if line.payment_adjustment_flag01:
-                    flag_desc = self.ioce_component.getPaymentAdjustmentFlagDescription(
-                        line.payment_adjustment_flag01.flag, internal_version
+                    flag_desc = self._code_description(
+                        "getPaymentAdjustmentFlagDescription",
+                        "getLatestPaymentAdjustmentFlagDescription",
+                        line.payment_adjustment_flag01.flag,
+                        internal_version,
                     )
-                    line.payment_adjustment_flag01.description = (
-                        str(flag_desc) if flag_desc else ""
-                    )
+                    line.payment_adjustment_flag01.description = flag_desc
 
                 if line.payment_adjustment_flag02:
-                    flag_desc = self.ioce_component.getPaymentAdjustmentFlagDescription(
-                        line.payment_adjustment_flag02.flag, internal_version
+                    flag_desc = self._code_description(
+                        "getPaymentAdjustmentFlagDescription",
+                        "getLatestPaymentAdjustmentFlagDescription",
+                        line.payment_adjustment_flag02.flag,
+                        internal_version,
                     )
-                    line.payment_adjustment_flag02.description = (
-                        str(flag_desc) if flag_desc else ""
-                    )
+                    line.payment_adjustment_flag02.description = flag_desc
 
             # Get diagnosis descriptions
             if result.principal_diagnosis_code.diagnosis:
-                principal_desc = self.ioce_component.getDiagnosisDescription(
-                    result.principal_diagnosis_code.diagnosis, internal_version
+                principal_desc = self._code_description(
+                    "getDiagnosisDescription",
+                    "getLatestDiagnosisDescription",
+                    result.principal_diagnosis_code.diagnosis,
+                    internal_version,
                 )
-                result.principal_diagnosis_code.description = (
-                    str(principal_desc) if principal_desc else ""
-                )
+                result.principal_diagnosis_code.description = principal_desc
 
                 for item in result.principal_diagnosis_code.edit_list:
-                    edit_desc = self.ioce_component.getEditDescription(
-                        str(int(item.edit)), internal_version
+                    edit_desc = self._code_description(
+                        "getEditDescription",
+                        "getLatestEditDescription",
+                        str(int(item.edit)),
+                        internal_version,
                     )
-                    item.description = str(edit_desc) if edit_desc else ""
+                    item.description = edit_desc
 
             if result.secondary_diagnosis_code_list:
                 for item in result.secondary_diagnosis_code_list:
                     if item.diagnosis:
-                        diagnosis_desc = self.ioce_component.getDiagnosisDescription(
-                            item.diagnosis, internal_version
+                        diagnosis_desc = self._code_description(
+                            "getDiagnosisDescription",
+                            "getLatestDiagnosisDescription",
+                            item.diagnosis,
+                            internal_version,
                         )
-                        item.description = str(diagnosis_desc) if diagnosis_desc else ""
+                        item.description = diagnosis_desc
 
                     if item.edit_list:
                         for edit in item.edit_list:
-                            edit_desc = self.ioce_component.getEditDescription(
-                                str(int(edit.edit)), internal_version
+                            edit_desc = self._code_description(
+                                "getEditDescription",
+                                "getLatestEditDescription",
+                                str(int(edit.edit)),
+                                internal_version,
                             )
-                            edit.description = str(edit_desc) if edit_desc else ""
+                            edit.description = edit_desc
 
         except Exception as e:
             print(f"Warning: Could not retrieve some descriptions: {e}")
