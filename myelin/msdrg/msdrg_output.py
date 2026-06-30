@@ -18,6 +18,7 @@ class MsdrgHac(BaseModel):
 
 
 class MsdrgOutputDxCode(BaseModel):
+    code: str | None = None
     grouping_impact: str | None = None
     final_severity_flag: str | None = None
     initial_severity_flag: str | None = None
@@ -26,6 +27,8 @@ class MsdrgOutputDxCode(BaseModel):
     recognized_by_grouper: bool | None = None
 
     def from_java(self, java_obj: jpype.JObject) -> "MsdrgOutputDxCode":
+        input_dx = java_obj.getInputDxCode()
+        self.code = str(input_dx.getValue()) if input_dx is not None else None
         self.grouping_impact = str(java_obj.getDiagnosisAffectsDrg().name())
         self.final_severity_flag = str(java_obj.getFinalSeverityUsage().name())
         self.initial_severity_flag = str(java_obj.getInitialSeverityUsage().name())

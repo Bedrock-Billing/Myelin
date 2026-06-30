@@ -94,6 +94,8 @@ def test_msdrg_process_json_claim(myelin_or_skip):
     output = myelin_or_skip.drg_client.process(claim)
     # Basic invariants
     assert hasattr(output, "model_dump"), "MS-DRG output should be a pydantic model"
+    assert output.principal_dx_output.code == "A021"
+    assert output.secondary_dx_outputs[0].code == "I82411"
 
 
 def test_ioce_process_opps_claim(myelin_or_skip):
