@@ -825,7 +825,9 @@ class IppsClient:
 
         java_procedures = self.array_list_class()
         for pr in claim.inpatient_pxs:
-            java_procedures.add(pr.code)
+            if pr.code:
+                java_procedures.add(self.java_string_class(pr.code))
+        claim_object.setProcedureCodes(java_procedures)
 
         ndc_list = self.array_list_class()
         for line in claim.lines:
