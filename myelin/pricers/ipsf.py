@@ -713,7 +713,7 @@ class IPSFProvider(BaseModel):
         )
         java_provider.setHrrParticipantIndicator(
             str(self.hrr_participant_indicator)
-            if self.hrr_participant_indicator
+            if self.hrr_participant_indicator is not None
             else ""
         )
         java_provider.setInternsToBedsRatio(
