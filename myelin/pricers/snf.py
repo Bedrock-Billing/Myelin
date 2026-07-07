@@ -219,7 +219,11 @@ class SnfClient:
 
         claim_obj.setProviderCcn(ipsf_provider.provider_ccn)
         pricing_request.setClaimData(claim_obj)
-        ipsf_provider.set_java_values(provider_data, self)
+        ipsf_provider.set_java_values(
+            provider_data,
+            self,
+            include_supplemental_wage_index=True,
+        )
         pricing_request.setProviderData(provider_data)
         return pricing_request, ipsf_provider
 

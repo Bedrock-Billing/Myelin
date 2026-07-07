@@ -641,7 +641,12 @@ class IPSFProvider(BaseModel):
             )
         return
 
-    def set_java_values(self, java_provider, client):
+    def set_java_values(
+        self,
+        java_provider,
+        client,
+        include_supplemental_wage_index: bool = False,
+    ):
         if not hasattr(client, "java_integer_class") or not hasattr(
             client, "java_big_decimal_class"
         ):
@@ -815,6 +820,17 @@ class IPSFProvider(BaseModel):
             if self.special_wage_index
             else client.java_big_decimal_class(0)
         )
+        if include_supplemental_wage_index:
+            java_provider.setSupplementalWageIndex(
+                client.java_big_decimal_class(self.supplemental_wage_index)
+                if self.supplemental_wage_index
+                else client.java_big_decimal_class(0)
+            )
+            java_provider.setSupplementalWageIndexIndicator(
+                self.supplemental_wage_index_indicator
+                if self.supplemental_wage_index_indicator
+                else ""
+            )
         java_provider.setProviderType(self.provider_type if self.provider_type else "")
         java_provider.setHospitalQualityIndicator(
             self.hosp_quality_indicator if self.hosp_quality_indicator else ""

@@ -27,6 +27,8 @@ class IrfOutput(BaseModel):
     return_code: ReturnCode | None = None
     calculation_version: str | None = None
     total_payment: float | None = None
+    final_cbsa: str | None = None
+    final_wage_index: float | None = None
     average_length_of_stay: float | None = None
     budget_neutrality_conversion_amt: float | None = None
     relative_weight: float | None = None
@@ -69,6 +71,8 @@ class IrfOutput(BaseModel):
         payment_data = java_obj.getPaymentData()
         if payment_data is not None:
             self.total_payment = float_or_none(payment_data.getTotalPayment())
+            self.final_cbsa = str(payment_data.getFinalCbsa())
+            self.final_wage_index = float_or_none(payment_data.getFinalWageIndex())
             self.average_length_of_stay = float(payment_data.getAverageLengthOfStay())
             self.budget_neutrality_conversion_amt = float_or_none(
                 payment_data.getBudgetNeutralityConversionAmount()
@@ -317,7 +321,11 @@ class IrfClient:
                 )
         claim_obj.setProviderCcn(ipsf_provider.provider_ccn)
         pricing_request.setClaimData(claim_obj)
-        ipsf_provider.set_java_values(provider_data, self)
+        ipsf_provider.set_java_values(
+            provider_data,
+            self,
+            include_supplemental_wage_index=True,
+        )
         pricing_request.setProviderData(provider_data)
         return pricing_request, ipsf_provider
 
