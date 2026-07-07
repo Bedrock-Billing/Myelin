@@ -10,6 +10,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Provider data patching** - `IPSFDatabase.patch()` and `OPSFDatabase.patch()` methods for incremental updates to provider-specific data. Queries the maximum `last_updated` date, downloads only new records from that point forward, and upserts them (updating existing records with the same provider_ccn + effective_date, inserting new ones). Supports both YYYYMMDD and YYYY-MM-DD date formats.
+- **MS-DRG diagnosis output codes** - `MsdrgOutputDxCode` now includes the
+  original diagnosis code value, making principal and secondary diagnosis
+  outputs easier to trace back to claim input.
+- **IOCE description enrichment** - IOCE output now fills additional claim
+  disposition, edit, line-item flag, modifier, payment indicator, revenue code,
+  discount formula, and APC descriptions, with latest-description fallbacks when
+  version-specific lookup text is unavailable.
+- **IRF wage-index outputs** - `IrfOutput` now exposes inherited final CBSA and
+  final wage-index values from the CMS payment data.
+
+### Changed
+
+- **CMSDownloader** - rewritten for clearer component discovery, jar inventory
+  validation, missing-jar detection, bounded concurrent pricer downloads, shared
+  request timeout handling, and cleaner extraction of only the required CMS
+  runtime jars.
+
+### Fixed
+
+- **IPPS procedure codes** - inpatient procedure codes are now passed to the
+  IPPS Java claim object as Java strings and assigned with `setProcedureCodes`.
+- **IPSF HRR participant indicator** - preserves `0` values instead of treating
+  them as missing, preventing invalid return codes and incorrect pricing.
+- **Supplemental wage index mapping** - LTCH, SNF, and IRF now opt in to sending
+  IPSF supplemental wage-index fields to the CMS Java provider object while IPF
+  and other shared IPSF call sites keep the previous default behavior.
 
 ## [1.0.0] - 2026-06-04
 
