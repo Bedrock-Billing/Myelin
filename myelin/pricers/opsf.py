@@ -261,6 +261,12 @@ class OPSFProvider(BaseModel):
         return self.from_db(conn, provider, date_int, **kwargs)
 
     def from_claim(self, claim: Claim, db: Engine, **kwargs: object) -> None:
+        # TODO: mirror the opt-in cache in myelin/pricers/ipsf.py — add
+        # `use_cache: bool = False` kwarg, a module-level _OPSF_FIELD_CACHE
+        # dict + _provider_cache_key/_evict_if_needed helpers, and
+        # `clear_opsf_cache()` / `opsf_cache_info()` accessors. Wire it
+        # into Myelin.process the same way IPSF is wired (gate behind
+        # `self.enable_provider_cache`).
         if claim.billing_provider is not None:
             if isinstance(claim.thru_date, datetime):
                 date_int = int(claim.thru_date.strftime("%Y%m%d"))

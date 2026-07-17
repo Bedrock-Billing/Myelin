@@ -349,6 +349,18 @@ means we don't change the default behavior of any existing user code.
 - `asyncio` wrapper (`async def process_batch_async`).
 - Ray/Dask backend for very large (1M+) claim batches.
 - Persistent queue / checkpointing for restartable long batches.
+- **Mirror the opt-in provider cache for `OPSFProvider` in
+  `myelin/pricers/opsf.py`.** The IPSF cache (added in v1) keys on
+  `(ccn_or_npi, date_int, additional_data)` and roughly doubles batch
+  throughput for claims that share a small set of provider CCNs. The
+  same pattern should be applied to `OPSFProvider.from_claim` (which
+  currently does a fresh SQLite `SELECT` on every call): add a
+  `use_cache: bool = False` kwarg, a module-level `_OPSF_FIELD_CACHE`
+  dict with the same key shape, `clear_opsf_cache()` /
+  `opsf_cache_info()` accessors, and wire it into `Myelin.process` the
+  same way IPSF is wired. The IPSF cache demonstrates the
+  implementation pattern; the OPSF one is independently useful for
+  ESRD / OPPS / ASC pricers which all consult the OPSF table.
 
 ## 17. Implementation follow-ups (added during v1 implementation)
 

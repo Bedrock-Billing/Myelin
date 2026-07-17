@@ -121,6 +121,7 @@ _SESSION_FACTORY_CACHE: dict[int, sessionmaker] = {}
 # Opt-in per-process cache for IPSFProvider field lookups. Keyed by
 # (provider_kind, provider_id, date_int, frozenset(additional_data.items())).
 # Disabled by default; opt in via Myelin(enable_provider_cache=True).
+# TODO: mirror this for OPSFProvider in myelin/pricers/opsf.py.
 _PROVIDER_FIELD_CACHE: dict[tuple[str, str, int, frozenset], dict[str, Any]] = {}
 _PROVIDER_CACHE_MAX_SIZE: int = 256
 _PROVIDER_CACHE_HITS: int = 0
