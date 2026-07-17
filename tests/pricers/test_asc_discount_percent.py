@@ -5,7 +5,6 @@ import unittest
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from datetime import datetime
-from decimal import Decimal
 from unittest.mock import MagicMock
 
 from myelin.input.claim import Claim, LineItem

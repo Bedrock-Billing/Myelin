@@ -1,7 +1,6 @@
 import os
 from datetime import datetime, timedelta
 
-import _pytest._code.source
 
 from myelin import IPSFProvider, Myelin, MyelinOutput, OPSFProvider
 from myelin.helpers.claim_examples import (
