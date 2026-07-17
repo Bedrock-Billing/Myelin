@@ -406,6 +406,69 @@ def run_myelin_process(myelin: Myelin):
     claim.to_ub04_pdf(f"{claim.claimid}.pdf")
 
 
+def run_batch_examples(myelin: Myelin):
+    """Demonstrates Myelin's batch processing API."""
+    print("""
+    ====================
+    Running Batch Examples
+    ====================
+    """)
+
+    print("--- process_batch (small in-memory batch) ---")
+    claims = [claim_example() for _ in range(3)]
+    for i, c in enumerate(claims):
+        c.claimid = f"BATCH_{i:03d}"
+    result = myelin.process_batch(claims)
+    print(
+        f"  total={result.stats.total_count} "
+        f"success={result.stats.success_count} "
+        f"fail={result.stats.failure_count} "
+        f"throughput={result.stats.claims_per_second:.0f}/s"
+    )
+    print(f"  per_pricer_total_payment: {result.stats.per_pricer_total_payment}")
+
+    print("--- process_stream (lazy result iteration) ---")
+    for mio in myelin.process_stream(claims):
+        status = mio.output.error if mio.output and mio.output.error else "ok"
+        print(f"  {mio.input.claimid}: {status}")
+
+
+def run_streaming_examples(myelin: Myelin):
+    """Demonstrates Myelin's streaming I/O for large claim feeds."""
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from myelin.batch.options import BatchOptions
+
+    print("""
+    ====================
+    Running Streaming Examples
+    ====================
+    """)
+
+    n = 20
+    workdir = Path(tempfile.mkdtemp(prefix="myelin_streaming_"))
+    in_path = workdir / "claims_in.jsonl"
+    out_path = workdir / "claims_out.jsonl"
+
+    with in_path.open("w") as f:
+        for i in range(n):
+            c = claim_example()
+            c.claimid = f"STREAM_{i:04d}"
+            f.write(json.dumps(c.model_dump(mode="json")) + "\n")
+
+    print(f"--- process_jsonl: {n} claims {in_path} -> {out_path} ---")
+    stats = myelin.process_jsonl(
+        in_path, out_path, BatchOptions(progress=False), claim_count=n
+    )
+    print(
+        f"  total={stats.total_count} success={stats.success_count} "
+        f"fail={stats.failure_count} throughput={stats.claims_per_second:.0f}/s"
+    )
+    print(f"  output has {out_path.stat().st_size} bytes")
+
+
 def main():
     """Main function to run all examples."""
     jar_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "jars"))
@@ -419,6 +482,8 @@ def main():
         run_groupers(myelin)
         run_pricers(myelin)
         # run_myelin_process(myelin)
+        # run_batch_examples(myelin)
+        # run_streaming_examples(myelin)
 
 
 if __name__ == "__main__":

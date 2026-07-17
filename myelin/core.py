@@ -1,9 +1,10 @@
 import logging
 import os
 from contextlib import ExitStack
+from pathlib import Path
 from threading import RLock
 from types import TracebackType
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Iterable, Iterator, Literal
 
 import jpype
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,6 +13,9 @@ from myelin.converter import ICDConverter
 from myelin.database.manager import DatabaseManager
 from myelin.helpers.cms_downloader import CMSDownloader
 from myelin.helpers.utils import PROVIDER_TYPES, JavaRuntimeError, ProviderDataError
+
+if TYPE_CHECKING:
+    from myelin.batch import BatchOptions, BatchResult, BatchStats
 from myelin.hhag import HhagClient, HhagOutput
 from myelin.input.claim import Claim, Modules
 from myelin.ioce import IoceClient, IoceOutput
@@ -156,12 +160,14 @@ class Myelin:
         log_level: int = logging.INFO,
         extra_classpaths: list[str] | None = None,
         db_backend: Literal["sqlite", "postgresql"] = "sqlite",
+        enable_provider_cache: bool = False,
     ):
         self.extra_classpaths: list[str] = extra_classpaths or []
         self.jar_path: str = jar_path
         self.db_path: str = db_path
         self.build_jar_dirs: bool = build_jar_dirs
         self.build_db: bool = build_db
+        self.enable_provider_cache: bool = enable_provider_cache
 
         self._exit_stack: ExitStack = ExitStack()
         self._initialized: bool = False
@@ -226,6 +232,18 @@ class Myelin:
     def cleanup(self) -> None:
         """Comprehensive cleanup of all resources"""
         self._exit_stack.close()
+
+    def provider_cache_info(self) -> dict[str, int]:
+        """Return diagnostic stats for the opt-in IPSF provider cache."""
+        from myelin.pricers.ipsf import provider_cache_info
+
+        return provider_cache_info()
+
+    def clear_provider_cache(self) -> None:
+        """Drop all entries from the opt-in IPSF provider cache."""
+        from myelin.pricers.ipsf import clear_provider_cache
+
+        clear_provider_cache()
 
     def _ensure_directories(self) -> None:
         """Ensure required directories exist"""
@@ -415,8 +433,8 @@ class Myelin:
     def process(self, claim: Claim, **kwargs: object) -> MyelinOutput:
         """Process a claim through the appropriate modules based on its configuration."""
 
-        # Validate the claim
-        Claim.model_validate(claim)
+        if not isinstance(claim, Claim):
+            Claim.model_validate(claim)
 
         results = MyelinOutput()
 
@@ -453,7 +471,12 @@ class Myelin:
                 return results
             try:
                 if ipsf_provider is not None:
-                    ipsf_provider.from_claim(claim, self.db_manager.engine, **kwargs)
+                    ipsf_provider.from_claim(
+                        claim,
+                        self.db_manager.engine,
+                        use_cache=self.enable_provider_cache,
+                        **kwargs,
+                    )
                 if opsf_provider is not None:
                     opsf_provider.from_claim(claim, self.db_manager.engine, **kwargs)
             except ProviderDataError as e:
@@ -494,7 +517,10 @@ class Myelin:
                     if new_ipsf_needed and ipsf_provider is None:
                         ipsf_provider = IPSFProvider()
                         ipsf_provider.from_claim(
-                            claim, self.db_manager.engine, **kwargs
+                            claim,
+                            self.db_manager.engine,
+                            use_cache=self.enable_provider_cache,
+                            **kwargs,
                         )
 
                     if new_opsf_needed and opsf_provider is None:
@@ -799,3 +825,371 @@ class Myelin:
             results.error = "ASC client not initialized"
             return
         results.asc = client.process(claim, provider, **kwargs)
+
+    def process_batch(
+        self,
+        claims: Iterable[Claim],
+        options: BatchOptions | None = None,
+    ) -> BatchResult:
+        from datetime import datetime as _dt
+        from time import perf_counter
+
+        from myelin.batch.executor import (
+            finalize_stats,
+            run_process_batch,
+            run_thread_batch,
+        )
+        from myelin.batch.options import BatchOptions as _BatchOptions
+        from myelin.batch.result import BatchResult as _BatchResult
+
+        opts = options or _BatchOptions()
+        claims_list = list(claims)
+        started_at = _dt.now()
+        t0 = perf_counter()
+
+        if opts.backend.value == "processes":
+            items, stats = run_process_batch(
+                claims_list,
+                opts,
+                self.jar_path,
+                self.db_path,
+                self.build_db,
+            )
+        else:
+            items, stats = run_thread_batch(claims_list, opts, self)
+
+        elapsed = perf_counter() - t0
+        finished_at = _dt.now()
+        finalize_stats(items, stats, elapsed, started_at, finished_at)
+        return _BatchResult(items=items, stats=stats, options=opts)
+
+    def process_stream(
+        self,
+        claims: Iterable[Claim],
+        options: BatchOptions | None = None,
+        total: int | None = None,
+    ) -> Iterator[MyelinIO]:
+        from myelin.batch.executor import (
+            run_process_stream,
+            run_thread_stream,
+        )
+        from myelin.batch.options import BatchOptions as _BatchOptions
+
+        opts = options or _BatchOptions()
+        if opts.backend.value == "processes":
+            yield from run_process_stream(
+                claims,
+                opts,
+                self.jar_path,
+                self.db_path,
+                self.build_db,
+                total=total,
+            )
+        else:
+            yield from run_thread_stream(claims, opts, self, total=total)
+
+    def process_in_order(
+        self,
+        claims: Iterable[Claim],
+        options: BatchOptions | None = None,
+    ) -> Iterator[MyelinIO]:
+        from myelin.batch.options import BatchOptions as _BatchOptions
+
+        opts = options or _BatchOptions()
+        if not opts.preserve_order:
+            opts = opts.model_copy(update={"preserve_order": True})
+        result = self.process_batch(claims, opts)
+        yield from result.items
+
+    def process_jsonl(
+        self,
+        input_path: str | Path,
+        output_path: str | Path,
+        options: BatchOptions | None = None,
+        skip_malformed: bool = True,
+        claim_count: int | None = None,
+    ) -> BatchStats:
+        """Stream claims from a JSONL file, process them, and write results to JSONL.
+
+        Memory usage is O(workers) in the number of claims: one line is read,
+        one claim is in flight per worker, one result line is written at a
+        time. Suitable for arbitrarily large input files.
+
+        Results are written in **completion order** (not submission order)
+        because true streaming precludes holding an index-to-result map.
+        Use ``Myelin.process_batch`` if strict submission order is required.
+
+        Args:
+            input_path: Path to input JSONL file. Each non-blank line is either
+                a Claim dict or a wrapper ``{"input": {...}}`` (matching
+                ``MyelinIO`` serialization).
+            output_path: Path to output JSONL file. Each line is a serialized
+                ``MyelinIO`` (input + output pair).
+            options: BatchOptions controlling concurrency and progress.
+            skip_malformed: If True (default), malformed lines are recorded in
+                the returned ``BatchStats.error_histogram`` as a
+                ``JSONLParseError`` entry and a placeholder ``MyelinIO`` is
+                written to the output. If False, the first parse error
+                raises.
+            claim_count: Optional total for progress bar ETA. If known up
+                front (e.g. ``wc -l input.jsonl``), pass it for a determinate
+                tqdm bar. Default None shows an indeterminate bar.
+
+        Returns:
+            ``BatchStats`` summarizing the run.
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from datetime import datetime as _dt
+        from pathlib import Path as _Path
+        from time import perf_counter
+
+        from myelin.batch.executor import (
+            _ensure_myelin_ready,
+            _should_fail_fast,
+            _to_mio,
+            _validate,
+        )
+        from myelin.batch.jsonl import iter_claims_from_jsonl, write_mio_line
+        from myelin.batch.options import BatchOptions as _BatchOptions
+        from myelin.batch.progress import make_progress
+        from myelin.batch.result import BatchStats, classify_error
+        from myelin.core import MyelinIO, MyelinOutput
+
+        opts = options or _BatchOptions()
+        if opts.preserve_order:
+            opts = opts.model_copy(update={"preserve_order": False})
+
+        _ensure_myelin_ready(self)
+
+        in_path = _Path(input_path)
+        out_path = _Path(output_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        stats = BatchStats()
+        started_at = _dt.now()
+        t0 = perf_counter()
+        progress = make_progress(opts.resolved_progress(), total=claim_count or 0)
+
+        def _process_one(claim: Claim) -> MyelinIO:
+            validated = _validate(claim)
+            if isinstance(validated, MyelinIO):
+                return validated
+            try:
+                output = self.process(validated)
+            except Exception as exc:
+                if _should_fail_fast(opts, exc):
+                    raise
+                return _to_mio(validated, exc)
+            return MyelinIO(input=validated, output=output)
+
+        def _parse_error_mio(line_no: int, exc: Exception) -> MyelinIO:
+            return MyelinIO.model_construct(
+                input=None,
+                output=MyelinOutput(
+                    error=f"JSONLParseError(line={line_no}): "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            )
+
+        try:
+            with out_path.open("w", encoding="utf-8") as out_f:
+                with ThreadPoolExecutor(
+                    max_workers=opts.resolved_max_workers(),
+                    thread_name_prefix="myelin-jsonl",
+                ) as pool:
+                    futures: dict = {}
+                    for item in iter_claims_from_jsonl(
+                        in_path, skip_malformed=skip_malformed
+                    ):
+                        if isinstance(item, tuple):
+                            line_no, _raw, exc = item
+                            write_mio_line(_parse_error_mio(line_no, exc), out_f)
+                            stats.total_count += 1
+                            stats.skipped_count += 1
+                            err_key = f"JSONLParseError: {type(exc).__name__}"
+                            stats.error_histogram[err_key] = (
+                                stats.error_histogram.get(err_key, 0) + 1
+                            )
+                            progress.update(1)
+                            continue
+                        futures[pool.submit(_process_one, item)] = None
+
+                    for fut in as_completed(futures):
+                        try:
+                            mio = fut.result()
+                        except Exception as exc:
+                            if _should_fail_fast(opts, exc):
+                                raise
+                            mio = _to_mio(Claim(), exc)
+                        write_mio_line(mio, out_f)
+                        stats.total_count += 1
+                        err = classify_error(mio.output)
+                        if err is None:
+                            stats.success_count += 1
+                        else:
+                            stats.failure_count += 1
+                            stats.error_histogram[err] = (
+                                stats.error_histogram.get(err, 0) + 1
+                            )
+                        progress.update(1)
+        finally:
+            progress.close()
+
+        elapsed = perf_counter() - t0
+        finished_at = _dt.now()
+        stats.elapsed_seconds = elapsed
+        stats.claims_per_second = (stats.total_count / elapsed) if elapsed > 0 else 0.0
+        stats.started_at = started_at
+        stats.finished_at = finished_at
+        return stats
+
+    def process_csv(
+        self,
+        input_path: str | Path,
+        output_path: str | Path,
+        options: BatchOptions | None = None,
+        skip_malformed: bool = True,
+        claim_count: int | None = None,
+    ) -> BatchStats:
+        """Stream claims from a CSV file, process them, and write results to CSV.
+
+        Memory usage is O(workers) in the number of claims: one row is read,
+        one claim is in flight per worker, one result row is written at a
+        time. Suitable for arbitrarily large input files.
+
+        Input CSV columns use dot notation for nested fields, e.g.
+        ``principal_dx.code``, ``billing_provider.other_id``. A column named
+        ``input`` whose value is JSON is passed through the JSONL path for
+        full MyelinIO-payload support.
+
+        Output CSV columns: ``claimid, status, error, total_payment`` followed
+        by per-pricer payment columns.
+
+        Results are written in **completion order** (not submission order)
+        because true streaming precludes holding an index-to-result map.
+        Use ``Myelin.process_batch`` if strict submission order is required.
+
+        Args:
+            input_path: Path to input CSV file.
+            output_path: Path to output CSV file.
+            options: BatchOptions controlling concurrency and progress.
+            skip_malformed: If True (default), malformed rows are recorded
+                in the returned ``BatchStats.error_histogram`` as a
+                ``CSVParseError`` entry and a placeholder row is written to
+                the output. If False, the first parse error raises.
+            claim_count: Optional total for progress bar ETA.
+
+        Returns:
+            ``BatchStats`` summarizing the run.
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from datetime import datetime as _dt
+        from pathlib import Path as _Path
+        from time import perf_counter
+
+        from myelin.batch.csv_io import (
+            iter_claims_from_csv,
+            write_csv_header,
+            write_mio_csv_row,
+        )
+        from myelin.batch.executor import (
+            _ensure_myelin_ready,
+            _should_fail_fast,
+            _to_mio,
+            _validate,
+        )
+        from myelin.batch.options import BatchOptions as _BatchOptions
+        from myelin.batch.progress import make_progress
+        from myelin.batch.result import BatchStats, classify_error
+        from myelin.core import MyelinIO, MyelinOutput
+
+        opts = options or _BatchOptions()
+        if opts.preserve_order:
+            opts = opts.model_copy(update={"preserve_order": False})
+
+        _ensure_myelin_ready(self)
+
+        in_path = _Path(input_path)
+        out_path = _Path(output_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        stats = BatchStats()
+        started_at = _dt.now()
+        t0 = perf_counter()
+        progress = make_progress(opts.resolved_progress(), total=claim_count or 0)
+
+        def _process_one(claim: Claim) -> MyelinIO:
+            validated = _validate(claim)
+            if isinstance(validated, MyelinIO):
+                return validated
+            try:
+                output = self.process(validated)
+            except Exception as exc:
+                if _should_fail_fast(opts, exc):
+                    raise
+                return _to_mio(validated, exc)
+            return MyelinIO(input=validated, output=output)
+
+        def _parse_error_mio(line_no: int, exc: Exception) -> MyelinIO:
+            return MyelinIO.model_construct(
+                input=None,
+                output=MyelinOutput(
+                    error=f"CSVParseError(line={line_no}): "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            )
+
+        try:
+            with out_path.open("w", encoding="utf-8", newline="") as out_f:
+                write_csv_header(out_f)
+                with ThreadPoolExecutor(
+                    max_workers=opts.resolved_max_workers(),
+                    thread_name_prefix="myelin-csv",
+                ) as pool:
+                    futures: dict = {}
+                    for item in iter_claims_from_csv(
+                        in_path, skip_malformed=skip_malformed
+                    ):
+                        if isinstance(item, tuple):
+                            line_no, _raw, exc = item
+                            write_mio_csv_row(
+                                _parse_error_mio(line_no, exc), out_f
+                            )
+                            stats.total_count += 1
+                            stats.skipped_count += 1
+                            err_key = f"CSVParseError: {type(exc).__name__}"
+                            stats.error_histogram[err_key] = (
+                                stats.error_histogram.get(err_key, 0) + 1
+                            )
+                            progress.update(1)
+                            continue
+                        futures[pool.submit(_process_one, item)] = None
+
+                    for fut in as_completed(futures):
+                        try:
+                            mio = fut.result()
+                        except Exception as exc:
+                            if _should_fail_fast(opts, exc):
+                                raise
+                            mio = _to_mio(Claim(), exc)
+                        write_mio_csv_row(mio, out_f)
+                        stats.total_count += 1
+                        err = classify_error(mio.output)
+                        if err is None:
+                            stats.success_count += 1
+                        else:
+                            stats.failure_count += 1
+                            stats.error_histogram[err] = (
+                                stats.error_histogram.get(err, 0) + 1
+                            )
+                        progress.update(1)
+        finally:
+            progress.close()
+
+        elapsed = perf_counter() - t0
+        finished_at = _dt.now()
+        stats.elapsed_seconds = elapsed
+        stats.claims_per_second = (stats.total_count / elapsed) if elapsed > 0 else 0.0
+        stats.started_at = started_at
+        stats.finished_at = finished_at
+        return stats

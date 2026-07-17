@@ -67,3 +67,12 @@ Issues = "https://github.com/LibrePPS/myelin/issues"
 python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"' for fast CI runs)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

@@ -137,6 +137,30 @@ The `example.py` script provides a comprehensive set of examples for using all t
 uv run example.py
 ```
 
+### Batch Processing
+
+For processing many claims in parallel with streaming I/O, see `examples/generate_test_jsonl.py` and `examples/benchmark_batch.py`:
+
+```bash
+# Generate a 5000-claim test JSONL file
+uv run examples/generate_test_jsonl.py --count 5000 --output test_claims.jsonl
+
+# Run the benchmark (warmup + 5000 claims at 4 workers)
+uv run examples/benchmark_batch.py test_claims.jsonl -n 5000 -w 4
+```
+
+The batch API supports:
+
+- `Myelin.process_batch(claims)` — in-memory batch with summary stats
+- `Myelin.process_stream(claims)` — lazy streaming of `MyelinIO` results
+- `Myelin.process_jsonl(in_path, out_path)` — stream JSONL → JSONL with O(1) memory
+- `Myelin.process_csv(in_path, out_path)` — stream CSV → CSV with O(1) memory
+
+Test suite has a `slow` marker so you can run only the fast tests:
+```bash
+pytest -m "not slow"   # 12 seconds, no JVM required
+```
+
 ### MS-DRG Grouper
 
 The `DrgClient` is used to process inpatient claims and assign a DRG.

@@ -31,6 +31,15 @@ from .core import Myelin, MyelinIO, MyelinOutput
 from .helpers.cms_downloader import CMSDownloader
 from .helpers.utils import ReturnCode
 
+# Batch processing
+from .batch import (
+    BatchBackend,
+    BatchOptions,
+    BatchResult,
+    BatchStats,
+    OnError,
+)
+
 # HHA Grouper
 from .hhag import HhagClient, HhagEdit, HhagOutput
 from .input.claim import (
@@ -164,4 +173,10 @@ __all__ = [
     "MyelinOutput",
     "ReturnCode",
     "MyelinIO",
+    # Batch
+    "BatchBackend",
+    "BatchOptions",
+    "BatchResult",
+    "BatchStats",
+    "OnError",
 ]

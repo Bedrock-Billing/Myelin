@@ -118,6 +118,54 @@ Base = declarative_base()
 # Simple session factory cache to avoid recreating sessionmaker repeatedly
 _SESSION_FACTORY_CACHE: dict[int, sessionmaker] = {}
 
+# Opt-in per-process cache for IPSFProvider field lookups. Keyed by
+# (provider_kind, provider_id, date_int, frozenset(additional_data.items())).
+# Disabled by default; opt in via Myelin(enable_provider_cache=True).
+_PROVIDER_FIELD_CACHE: dict[tuple[str, str, int, frozenset], dict[str, Any]] = {}
+_PROVIDER_CACHE_MAX_SIZE: int = 256
+_PROVIDER_CACHE_HITS: int = 0
+_PROVIDER_CACHE_MISSES: int = 0
+
+
+def _evict_if_needed() -> None:
+    global _PROVIDER_FIELD_CACHE
+    while len(_PROVIDER_FIELD_CACHE) > _PROVIDER_CACHE_MAX_SIZE:
+        oldest_key = next(iter(_PROVIDER_FIELD_CACHE))
+        _PROVIDER_FIELD_CACHE.pop(oldest_key, None)
+
+
+def _additional_data_frozen(provider: Provider) -> frozenset:
+    extra = provider.additional_data.get("ipsf") if hasattr(provider, "additional_data") else None
+    if not isinstance(extra, dict) or not extra:
+        return frozenset()
+    return frozenset((k, repr(v)) for k, v in extra.items())
+
+
+def _provider_cache_key(provider: Provider, date_int: int) -> tuple[str, str, int, frozenset] | None:
+    if provider.other_id:
+        return ("ccn", str(provider.other_id), date_int, _additional_data_frozen(provider))
+    if provider.npi:
+        return ("npi", str(provider.npi), date_int, _additional_data_frozen(provider))
+    return None
+
+
+def clear_provider_cache() -> None:
+    """Drop all entries from the opt-in IPSF provider cache."""
+    global _PROVIDER_FIELD_CACHE, _PROVIDER_CACHE_HITS, _PROVIDER_CACHE_MISSES
+    _PROVIDER_FIELD_CACHE = {}
+    _PROVIDER_CACHE_HITS = 0
+    _PROVIDER_CACHE_MISSES = 0
+
+
+def provider_cache_info() -> dict[str, int]:
+    """Return a small dict of cache statistics: hits, misses, size, max_size."""
+    return {
+        "hits": _PROVIDER_CACHE_HITS,
+        "misses": _PROVIDER_CACHE_MISSES,
+        "size": len(_PROVIDER_FIELD_CACHE),
+        "max_size": _PROVIDER_CACHE_MAX_SIZE,
+    }
+
 
 class IPSF(Base):
     __tablename__ = "ipsf"
@@ -429,6 +477,8 @@ class IPSFDatabase:
                 os.remove(csv_path)
             except OSError:
                 pass
+
+        clear_provider_cache()
         return total
 
     # Backwards compatibility convenience
@@ -623,22 +673,50 @@ class IPSFProvider(BaseModel):
     ):  # backward compat
         return self.from_db(conn, provider, date_int, **kwargs)
 
-    def from_claim(self, claim: Claim, db: Engine, **kwargs: object) -> None:
+    def from_claim(
+        self,
+        claim: Claim,
+        db: Engine,
+        use_cache: bool = False,
+        **kwargs: object,
+    ) -> None:
         date_int = (
             int(claim.thru_date.strftime("%Y%m%d"))
             if isinstance(claim.thru_date, datetime)
             else 19000101
         )
+        provider: Provider | None = None
         if claim.billing_provider is not None:
-            self.from_sqlite(db, claim.billing_provider, date_int, **kwargs)
+            provider = claim.billing_provider
         elif claim.servicing_provider is not None:
-            self.from_sqlite(db, claim.servicing_provider, date_int, **kwargs)
+            provider = claim.servicing_provider
         else:
             raise ProviderDataError(
                 code="P0001",
                 description="No provider on claim",
                 explanation="Either billing or servicing provider must be provided for pricing.",
             )
+
+        global _PROVIDER_CACHE_HITS, _PROVIDER_CACHE_MISSES
+        cache_key = _provider_cache_key(provider, date_int) if use_cache else None
+        if cache_key is not None and cache_key in _PROVIDER_FIELD_CACHE:
+            cached = _PROVIDER_FIELD_CACHE[cache_key]
+            for field, value in cached.items():
+                setattr(self, field, value)
+            _PROVIDER_CACHE_HITS += 1
+            return
+
+        self.from_sqlite(db, provider, date_int, **kwargs)
+
+        if cache_key is not None:
+            snapshot: dict[str, Any] = {}
+            for field in DATATYPES:
+                if hasattr(self, field):
+                    snapshot[field] = getattr(self, field)
+            snapshot["termination_date"] = self.termination_date
+            _PROVIDER_FIELD_CACHE[cache_key] = snapshot
+            _PROVIDER_CACHE_MISSES += 1
+            _evict_if_needed()
         return
 
     def set_java_values(
