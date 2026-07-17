@@ -49,6 +49,22 @@ By wrapping the official CMS software, Myelin ensures that you are using the sam
 
 ## Installation
 
+Install from PyPI:
+
+```bash
+pip install myelin-pps
+```
+
+Optional extras are available for UB-04 PDF read/write support and the Excel exporters:
+
+```bash
+pip install myelin-pps[pdf]
+pip install myelin-pps[excel]
+pip install myelin-pps[all]
+```
+
+Or install from source:
+
 1.  **Clone this repository:**
     ```bash
     git clone https://github.com/LibrePPS/myelin.git
@@ -389,7 +405,7 @@ with Myelin() as myelin:
     excel_bytes = results.to_excel_bytes(claim=claim)
 ```
 
-Excel export support requires the optional `excel` extra (`pip install myelin[excel]`).
+Excel export support requires the optional `excel` extra (`pip install myelin-pps[excel]`).
 
 ## Project Structure
 

@@ -1,5 +1,5 @@
 [project]
-name = "myelin"
+name = "myelin-pps"
 version = "1.0.0"
 description = "A comprehensive Python toolkit for interacting with key components of the US healthcare reimbursement system."
 readme = "README.md"

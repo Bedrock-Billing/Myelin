@@ -401,7 +401,7 @@ wheels = [
 ]
 
 [[package]]
-name = "myelin"
+name = "myelin-pps"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
