@@ -19,6 +19,7 @@ extracting the matching JARs; a few dependencies are plain JAR downloads.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import shutil
@@ -147,6 +148,12 @@ class CMSDownloader:
         # not guaranteed safe to share across threads).
         self._thread_local = threading.local()
 
+        # Release identities let incremental runs check CMS for newer packages
+        # without downloading every ZIP on every invocation.
+        self._state_path = self.jars_dir / ".cms_download_state.json"
+        self._release_state = self._load_release_state()
+        self._release_hrefs: dict[str, str] = {}
+
     # ------------------------------------------------------------------ #
     # Logging
     # ------------------------------------------------------------------ #
@@ -169,8 +176,28 @@ class CMSDownloader:
         return logger
 
     # ------------------------------------------------------------------ #
-    # Inventory / completeness checks
+    # Release state / inventory / completeness checks
     # ------------------------------------------------------------------ #
+    def _load_release_state(self) -> dict:
+        try:
+            data = json.loads(self._state_path.read_text())
+            return data if isinstance(data, dict) else {}
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return {}
+
+    def _save_release_state(self) -> None:
+        """Atomically persist the CMS release identities successfully installed."""
+        self.jars_dir.mkdir(parents=True, exist_ok=True)
+        temp_path = self._state_path.with_suffix(".tmp")
+        temp_path.write_text(
+            json.dumps(self._release_state, indent=2, sort_keys=True) + "\n"
+        )
+        temp_path.replace(self._state_path)
+
+    def _remember_release(self, component: str, identity: object) -> None:
+        self._release_state[component] = identity
+        self._save_release_state()
+
     @staticmethod
     def _jars_in(directory: Path) -> set[str]:
         if not directory.exists():
@@ -353,20 +380,21 @@ class CMSDownloader:
         component: str,
         dest_dir: Path | None = None,
         wanted_jars: list[str] | None = None,
-    ) -> None:
+        replace_existing: bool = False,
+    ) -> bool:
         """
         Extract JARs from ``zip_path`` (including one level of nested ZIPs) into
         ``dest_dir``.
 
         If ``wanted_jars`` is given, only JARs matching that list are moved
-        (regex match for regex components, exact match otherwise). When it is
-        None, every JAR is moved; a name collision is preserved by appending the
-        component and a timestamp.
+        (regex match for regex components, exact match otherwise). With
+        ``replace_existing``, the package is validated first and then older JARs
+        in the same families are removed before the new files are installed.
         """
         dest_dir = dest_dir or self.jars_dir
         if not zip_path or not Path(zip_path).exists():
             self.logger.error(f"ZIP file not found: {zip_path}")
-            return
+            return False
 
         zip_path = Path(zip_path)
         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -390,36 +418,66 @@ class CMSDownloader:
             )
             self.logger.info(f"Found {len(jar_files)} JAR files in {component} package")
 
-            moved = skipped = 0
-            for jar in jar_files:
-                name = jar.name
+            selected = [
+                jar
+                for jar in jar_files
+                if wanted_jars is None
+                or self._jar_wanted(jar.name, wanted_jars, use_regex)
+            ]
+            if wanted_jars is not None:
+                missing = [
+                    wanted
+                    for wanted in wanted_jars
+                    if not any(
+                        self._jar_wanted(jar.name, [wanted], use_regex)
+                        for jar in selected
+                    )
+                ]
+                if missing:
+                    self.logger.error(
+                        f"{component} package is missing required JARs: {missing}"
+                    )
+                    return False
 
-                if wanted_jars is not None and not self._jar_wanted(
-                    name, wanted_jars, use_regex
-                ):
-                    skipped += 1
-                    continue
+            backup_dir = temp_dir / "replacement_backup"
+            backups: list[tuple[Path, Path]] = []
+            installed_paths: list[Path] = []
+            try:
+                if replace_existing and wanted_jars is not None:
+                    backup_dir.mkdir()
+                    for existing in dest_dir.glob("*.jar"):
+                        if self._jar_wanted(existing.name, wanted_jars, use_regex):
+                            backup = backup_dir / existing.name
+                            existing.replace(backup)
+                            backups.append((backup, existing))
+                            self.logger.info(
+                                f"Staged superseded JAR for removal: {existing.name}"
+                            )
 
-                dest_path = dest_dir / name
-                if dest_path.exists():
-                    if wanted_jars is not None:
+                moved = 0
+                for jar in selected:
+                    dest_path = dest_dir / jar.name
+                    if dest_path.exists() and not replace_existing:
                         self.logger.warning(
-                            f"JAR {name} was requested but already exists at destination"
+                            f"JAR already exists at destination: {jar.name}"
                         )
-                        skipped += 1
                         continue
-                    # Keep both copies when moving everything.
-                    dest_path = dest_dir / f"{jar.stem}_{component}_{int(time.time())}{jar.suffix}"
+                    jar.replace(dest_path)
+                    installed_paths.append(dest_path)
+                    self.logger.info(f"Moved {component} JAR file: {dest_path.name}")
+                    moved += 1
+            except Exception:
+                for installed_path in installed_paths:
+                    installed_path.unlink(missing_ok=True)
+                for backup, original in backups:
+                    backup.replace(original)
+                raise
 
-                shutil.move(str(jar), str(dest_path))
-                self.logger.info(f"Moved {component} JAR file: {dest_path.name}")
-                moved += 1
-
-            self.logger.info(
-                f"{component} JAR extraction complete. Moved {moved}, skipped {skipped}."
-            )
+            self.logger.info(f"{component} JAR extraction complete. Moved {moved}.")
+            return True
         except Exception as e:
             self.logger.error(f"Error processing ZIP file {zip_path.name}: {e}")
+            return False
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -438,12 +496,12 @@ class CMSDownloader:
     # ------------------------------------------------------------------ #
     # Component discovery / download
     # ------------------------------------------------------------------ #
-    def _download_msdrg(self) -> Path | None:
-        """Find and download the newest MS-DRG Java Source Code ZIP."""
+    def _discover_msdrg(self) -> str:
+        """Return and cache the newest MS-DRG package URL path."""
         self.logger.info(f"Fetching MS-DRG files from: {self.MSDRG_URL}")
         soup = self._get_soup(self.MSDRG_URL)
 
-        candidates: list[tuple[float, str, str]] = []
+        candidates: list[tuple[tuple[int, ...], str, str]] = []
         for link in soup.find_all("a", href=True):
             for strong in link.find_all("strong"):
                 text = strong.get_text() or ""
@@ -459,56 +517,67 @@ class CMSDownloader:
                 break
 
         if not candidates:
-            self.logger.error("No MS-DRG Java Source Code links found")
-            return None
+            raise RuntimeError("No MS-DRG Java Source Code links found")
 
         version, href, _text = max(candidates, key=lambda c: c[0])
-        self.logger.info(f"Selected MS-DRG file: {href} (version {version})")
+        self.logger.info(
+            f"Selected MS-DRG file: {href} (version {'.'.join(map(str, version))})"
+        )
+        self._release_hrefs["msdrg"] = href
+        return href
 
+    def _download_msdrg(self) -> Path | None:
+        """Download the newest MS-DRG Java Source Code ZIP."""
+        href = self._release_hrefs.get("msdrg") or self._discover_msdrg()
         download_url = urljoin(CMS_ROOT, href) if href.startswith("/") else href
         # CMS sometimes appends numeric suffixes like ".zip-11"; normalize them.
         filename = re.sub(r"\.zip-\d+$", ".zip", self._filename_from_url(href))
         return self.download_file(download_url, filename)
 
     @staticmethod
-    def _msdrg_version(text: str, href: str) -> float:
-        """Best-effort version number from the link text, falling back to the URL."""
-        for pattern in (r"Version\s+(\d+(?:\.\d+)?)", r"v(\d+(?:\.\d+)?)"):
+    def _msdrg_version(text: str, href: str) -> tuple[int, ...]:
+        """Best-effort version tuple from link text, falling back to the URL."""
+        for pattern in (r"Version\s+V?(\d+(?:\.\d+)*)", r"v(\d+(?:[-.]\d+)*)"):
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                return float(match.group(1))
+                return tuple(int(part) for part in re.split(r"[-.]", match.group(1)))
 
-        for pattern in (r"v(\d+(?:\.\d+)?)", r"(\d+\.\d+)", r"(\d+)"):
+        for pattern in (r"v(\d+(?:[-.]\d+)*)", r"(\d+(?:\.\d+)+)", r"(\d+)"):
             match = re.search(pattern, href, re.IGNORECASE)
             if match:
-                try:
-                    return float(match.group(1))
-                except ValueError:
-                    continue
-        return 0.0
+                return tuple(int(part) for part in re.split(r"[-.]", match.group(1)))
+        return (0,)
+
+    def _discover_ioce(self) -> str:
+        """Return and cache the highest-version IOCE standalone link."""
+        self.logger.info(f"Connecting to IOCE website: {self.IOCE_URL}")
+        soup = self._get_soup(self.IOCE_URL)
+        candidates: list[tuple[tuple[int, int], str]] = []
+        for link in soup.find_all("a"):
+            href = link.get("href", "")
+            text = link.get_text(" ", strip=True)
+            if (
+                self.JAVA_STANDALONE_PATTERN in href.lower()
+                or "Java Standalone" in text
+            ):
+                match = re.search(r"V(\d+)(?:\.R(\d+))?", text, re.IGNORECASE)
+                if match:
+                    candidates.append(
+                        ((int(match.group(1)), int(match.group(2) or 0)), href)
+                    )
+
+        if not candidates:
+            raise RuntimeError(
+                f"Could not find '{self.JAVA_STANDALONE_PATTERN}' link on the IOCE page"
+            )
+        _version, href = max(candidates)
+        self.logger.info(f"Found newest IOCE standalone Java link: {href}")
+        self._release_hrefs["ioce"] = href
+        return href
 
     def _download_ioce(self) -> Path | None:
         """Accept the IOCE license agreement and download the standalone ZIP."""
-        self.logger.info(f"Connecting to IOCE website: {self.IOCE_URL}")
-        soup = self._get_soup(self.IOCE_URL)
-
-        standalone_href = None
-        for link in soup.find_all("a"):
-            href = link.get("href", "")
-            if (
-                self.JAVA_STANDALONE_PATTERN in href.lower()
-                or "Java Standalone" in link.get_text()
-            ):
-                standalone_href = href
-                self.logger.info(f"Found IOCE standalone Java link: {href}")
-                break
-
-        if not standalone_href:
-            self.logger.error(
-                f"Could not find '{self.JAVA_STANDALONE_PATTERN}' link on the IOCE page"
-            )
-            return None
-
+        standalone_href = self._release_hrefs.get("ioce") or self._discover_ioce()
         license_url = urljoin(self.IOCE_URL, standalone_href)
         license_soup = self._get_soup(license_url)
 
@@ -560,48 +629,67 @@ class CMSDownloader:
         match = re.search(r"filename=(.+)", content_disposition)
         return match.group(1).strip("\"'") if match else None
 
-    def _download_hhagrouper(self) -> Path | None:
-        """Download the (non-GUI) HHA PPS grouper software ZIP."""
+    def _discover_hhag(self) -> str:
+        """Return and cache the newest dated non-GUI HHA grouper package."""
         self.logger.info(f"Connecting to HHAGrouper website: {self.HHAG_URL}")
         soup = self._get_soup(self.HHAG_URL)
-
-        hh_href = None
-        for link in soup.find_all("a", href=re.compile(r"hh-pps-grouper-software.*\.zip")):
-            if "-gui" in link["href"]:
+        month_numbers = {"jan": 1, "apr": 4, "oct": 10}
+        candidates: list[tuple[tuple[int, int], str]] = []
+        for link in soup.find_all(
+            "a", href=re.compile(r"hh-pps-grouper-software.*\.zip")
+        ):
+            href = link["href"]
+            if "-gui" in href.lower() or "archive" in href.lower():
                 continue
-            hh_href = link["href"]
-            break
-
-        if not hh_href:
-            self.logger.error(
-                "Could not find 'hh-pps-grouper-software' link on the HHAGrouper page"
+            match = re.search(
+                r"(?:^|/)(jan|apr(?:il)?|oct)-(\d{4})", href, re.IGNORECASE
             )
-            return None
+            if match:
+                candidates.append(
+                    (
+                        (
+                            int(match.group(2)),
+                            month_numbers[match.group(1)[:3].lower()],
+                        ),
+                        href,
+                    )
+                )
 
+        if not candidates:
+            raise RuntimeError("Could not find a dated HHA PPS grouper package")
+        _date, href = max(candidates)
+        self._release_hrefs["hhag"] = href
+        return href
+
+    def _download_hhagrouper(self) -> Path | None:
+        """Download the newest non-GUI HHA PPS grouper software ZIP."""
+        hh_href = self._release_hrefs.get("hhag") or self._discover_hhag()
         full_url = urljoin(self.HHAG_URL, hh_href)
         # CMS names these generically (e.g. "2025.zip"), so prefix for clarity.
         filename = f"hhgs-{self._filename_from_url(full_url)}"
         self.logger.info(f"Found HHAGrouper zip: {filename} ({full_url})")
         return self.download_file(full_url, filename)
 
-    def _download_cmg(self) -> Path | None:
-        """Download the CMG (IRF) grouper ZIP."""
+    def _discover_cmg(self) -> str:
+        """Return and cache the highest-version CMG package."""
         self.logger.info(f"Connecting to CMG website: {self.CMG_URL}")
         soup = self._get_soup(self.CMG_URL)
+        candidates = []
+        for link in soup.find_all(
+            "a", href=re.compile(r"/files/zip/cmg-version-\d+-final\.zip")
+        ):
+            match = re.search(r"cmg-version-(\d+)-final", link["href"])
+            if match:
+                candidates.append((int(match.group(1)), link["href"]))
+        if not candidates:
+            raise RuntimeError("Could not find a CMG grouper package")
+        _version, href = max(candidates)
+        self._release_hrefs["cmg"] = href
+        return href
 
-        cmg_href = next(
-            (
-                link["href"]
-                for link in soup.find_all(
-                    "a", href=re.compile(r"/files/zip/cmg-version-\d+-final\.zip")
-                )
-            ),
-            None,
-        )
-        if not cmg_href:
-            self.logger.error("Could not find 'cmg-grouper' link on the CMS page")
-            return None
-
+    def _download_cmg(self) -> Path | None:
+        """Download the newest CMG (IRF) grouper ZIP."""
+        cmg_href = self._release_hrefs.get("cmg") or self._discover_cmg()
         full_url = urljoin(self.CMG_URL, cmg_href)
         filename = self._filename_from_url(full_url)
         self.logger.info(f"Found CMG Grouper zip: {filename} ({full_url})")
@@ -637,7 +725,9 @@ class CMSDownloader:
             (h2 for h2 in soup.find_all("h2") if self.TARGET_HEADER in h2.text), None
         )
         if not header:
-            self.logger.error(f"Could not find section with header: {self.TARGET_HEADER}")
+            self.logger.error(
+                f"Could not find section with header: {self.TARGET_HEADER}"
+            )
             return []
 
         links: list[str] = []
@@ -676,43 +766,77 @@ class CMSDownloader:
                 self.logger.warning(f"Could not map URL to a JAR filename: {full_url}")
         return filtered
 
-    def download_web_pricers(self, force_all_downloads: bool = False) -> None:
-        """Scrape, download and extract the CMS Web Pricer JARs into pricers/."""
-        if not force_all_downloads and self.is_component_complete("pricers"):
-            self.logger.info("All pricer JARs already present; skipping download")
-            return
-
+    def download_web_pricers(self, force_all_downloads: bool = False) -> bool:
+        """Download changed CMS Web Pricers and replace superseded versions."""
         links = self._find_pricer_links()
         if not links:
             self.logger.warning("No pricer download links found")
-            return
-        self.logger.info(f"Found {len(links)} potential pricer files")
+            return self.is_component_complete("pricers")
+
+        releases: dict[str, str] = {}
+        for link in links:
+            match = re.match(r"(\w+)-pricer-", self._filename_from_url(link))
+            if match:
+                releases[match.group(1)] = link
+        self.logger.info(f"Found {len(releases)} potential pricer files")
+        if len(releases) != len(self.REQUIRED_JARS["pricers"]):
+            self.logger.error(
+                "CMS pricer page did not contain every required pricer type"
+            )
+            return False
+
+        old_releases = self._release_state.get("pricers", {})
+        if force_all_downloads or not isinstance(old_releases, dict):
+            changed = releases
+        else:
+            changed = {
+                kind: link
+                for kind, link in releases.items()
+                if old_releases.get(kind) != link
+                or not any(
+                    re.match(pattern, jar)
+                    for pattern in self.REQUIRED_JARS["pricers"]
+                    if pattern.startswith(f"{kind}-")
+                    for jar in self._jars_in(self.pricers_dir)
+                )
+            }
+        if not changed:
+            self.logger.info("CMS pricer releases are current; skipping download")
+            return True
 
         self.pricers_dir.mkdir(parents=True, exist_ok=True)
-
-        if not force_all_downloads:
-            missing = self.get_missing_jars_for_component("pricers")
-            links = self._filter_pricer_links_for_missing(links, missing)
-            if not links:
-                self.logger.info("No pricer downloads needed")
-                return
-
-        # Download the pricer ZIPs concurrently, extracting each one on the main
-        # thread as it finishes (downloads parallel, extraction serialized).
         succeeded = 0
         with ThreadPoolExecutor(max_workers=self.MAX_PRICER_WORKERS) as pool:
-            futures = {pool.submit(self._download_pricer, link): link for link in links}
+            futures = {
+                pool.submit(self._download_pricer, link): (kind, link)
+                for kind, link in changed.items()
+            }
             for future in tqdm(
                 as_completed(futures), total=len(futures), desc="pricers", unit="file"
             ):
+                kind, _link = futures[future]
                 zip_path = future.result()
-                if zip_path:
+                wanted = [
+                    pattern
+                    for pattern in self.REQUIRED_JARS["pricers"]
+                    if pattern.startswith(f"{kind}-")
+                ]
+                if zip_path and self._extract_jars_from_zip(
+                    zip_path,
+                    "pricers",
+                    dest_dir=self.pricers_dir,
+                    wanted_jars=wanted,
+                    replace_existing=True,
+                ):
                     succeeded += 1
-                    self._extract_jars_from_zip(
-                        zip_path, "pricers", dest_dir=self.pricers_dir
-                    )
 
-        self.logger.info(f"Downloaded and extracted {succeeded} of {len(links)} pricer files")
+        self.logger.info(
+            f"Downloaded and extracted {succeeded} of {len(changed)} pricer files"
+        )
+        if succeeded == len(changed):
+            self._remember_release("pricers", releases)
+            return True
+        return False
 
     def _worker_session(self) -> requests.Session:
         """Return a requests session unique to the calling thread."""
@@ -740,45 +864,57 @@ class CMSDownloader:
         self,
         component: str,
         downloader: Callable[[], Path | None],
+        release_finder: Callable[[], str],
         force: bool,
-        restrict_to_required: bool = False,
-    ) -> None:
+    ) -> bool:
         """
-        Download and extract a ZIP-based component if it is missing or forced.
+        Download a component when missing, forced, or CMS advertises a new release.
+        Existing files are retained if discovery, download, or validation fails.
+        """
+        try:
+            identity = release_finder()
+        except Exception as exc:
+            self.logger.warning(f"Could not check {component} release: {exc}")
+            return self.is_component_complete(component)
 
-        Normally a forced run extracts every JAR in the package; ``restrict_to_required``
-        keeps only the component's declared JARs even under force. This matters for
-        CMG, whose LIB archive bundles many third-party dependencies we don't want.
-        """
-        if not force and self.is_component_complete(component):
-            self.logger.info(f"{component} components already exist, skipping download")
-            return
+        if (
+            not force
+            and self.is_component_complete(component)
+            and self._release_state.get(component) == identity
+        ):
+            self.logger.info(f"{component} release is current; skipping download")
+            return True
 
         self.logger.info(f"Starting {component} file download process")
         zip_path = downloader()
         if not zip_path:
-            return
+            return False
+        installed = self._extract_jars_from_zip(
+            zip_path,
+            component,
+            wanted_jars=self.REQUIRED_JARS[component],
+            replace_existing=True,
+        )
+        if installed:
+            self._remember_release(component, identity)
+        return installed
 
-        if restrict_to_required:
-            wanted = self.REQUIRED_JARS[component]
-        elif force:
-            wanted = None
-        else:
-            wanted = self.get_missing_jars_for_component(component)
-        self._extract_jars_from_zip(zip_path, component, wanted_jars=wanted)
-
-    def _install_direct_jars(self, component: str, force: bool) -> None:
+    def _install_direct_jars(self, component: str, force: bool) -> bool:
         """Download plain dependency JARs straight into the jars directory."""
         if not force and self.is_component_complete(component):
             self.logger.info(f"{component} JARs already exist, skipping download")
-            return
+            return True
 
+        succeeded = True
         for url, filename in self.DIRECT_JARS[component]:
             self.logger.info(f"Downloading {component} JAR: {filename}")
             path = self.download_file(url, filename)
             if path:
-                shutil.move(str(path), str(self.jars_dir / filename))
+                path.replace(self.jars_dir / filename)
                 self.logger.info(f"Moved {component} JAR to jars directory: {filename}")
+            else:
+                succeeded = False
+        return succeeded
 
     def _remove_unwanted_jars(self) -> None:
         """Drop source and GUI JARs that are downloaded but never used."""
@@ -794,6 +930,7 @@ class CMSDownloader:
         try:
             if clean_existing and self.jars_dir.exists():
                 shutil.rmtree(self.jars_dir)
+                self._release_state = {}
             force = clean_existing or force_download
 
             self.jars_dir.mkdir(parents=True, exist_ok=True)
@@ -808,31 +945,49 @@ class CMSDownloader:
                     else "All JAR components are already present"
                 )
 
-            # ZIP-based components.
-            self._install_zip_component("msdrg", self._download_msdrg, force)
-            self._install_zip_component("ioce", self._download_ioce, force)
-            self._install_zip_component("hhag", self._download_hhagrouper, force)
+            # ZIP-based components. Each release is discovered before deciding
+            # whether an otherwise complete component needs replacement.
+            results = [
+                self._install_zip_component(
+                    "msdrg", self._download_msdrg, self._discover_msdrg, force
+                ),
+                self._install_zip_component(
+                    "ioce", self._download_ioce, self._discover_ioce, force
+                ),
+                self._install_zip_component(
+                    "hhag", self._download_hhagrouper, self._discover_hhag, force
+                ),
+            ]
 
-            # Plain dependency JARs.
-            self._install_direct_jars("gfc", force)
-            self._install_direct_jars("grpc", force)
-            self._install_direct_jars("slf4j", force)
+            # Plain dependency JARs have pinned URLs and versions.
+            results.extend(
+                self._install_direct_jars(component, force)
+                for component in ("gfc", "grpc", "slf4j")
+            )
 
-            # CMG ships nested ZIPs whose LIB bundle contains many dependencies;
-            # keep only our declared JARs even on a forced rebuild.
-            self._install_zip_component(
-                "cmg", self._download_cmg, force, restrict_to_required=True
+            # CMG ships bundled dependencies; extraction keeps only declared JARs.
+            results.append(
+                self._install_zip_component(
+                    "cmg", self._download_cmg, self._discover_cmg, force
+                )
             )
 
             # Web pricers live in their own subdirectory.
-            self.download_web_pricers(force_all_downloads=force)
+            results.append(self.download_web_pricers(force_all_downloads=force))
 
             # Clean up and prune unused JARs.
             shutil.rmtree(self.download_dir, ignore_errors=True)
             self._remove_unwanted_jars()
 
-            self.logger.info("JAR environment build complete!")
-            return True
+            validation = self.validate_jar_environment()
+            success = all(results) and validation["is_valid"]
+            if success:
+                self.logger.info("JAR environment build complete!")
+            else:
+                self.logger.error(
+                    f"JAR environment build incomplete: {validation['missing_components']}"
+                )
+            return success
 
         except Exception as e:
             self.logger.error(f"An unhandled error occurred: {e}")
@@ -849,6 +1004,8 @@ if __name__ == "__main__":
     if downloader.build_jar_environment(clean_existing=False):
         print("\nJAR environment build completed successfully!")
         downloader.print_jar_inventory()
-        print(f"\nEnvironment Validation: {downloader.validate_jar_environment()['status_message']}")
+        print(
+            f"\nEnvironment Validation: {downloader.validate_jar_environment()['status_message']}"
+        )
     else:
         print("JAR environment build failed. Check logs for details.")
