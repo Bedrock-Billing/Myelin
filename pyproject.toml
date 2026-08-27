@@ -1,6 +1,6 @@
 [project]
 name = "myelin-pps"
-version = "1.0.0"
+version = "1.0.1"
 description = "A comprehensive Python toolkit for interacting with key components of the US healthcare reimbursement system."
 readme = "README.md"
 license-files = [ "LICENSE" ]
