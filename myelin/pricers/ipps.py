@@ -913,7 +913,7 @@ class IppsClient:
                 ipps_output,
                 ipsf_provider if ipsf_provider is not None else IPSFProvider(),
             )
-        pricing_response = self.process_claim(claim, pricing_request, **kwargs)
+        pricing_response = self.process_claim(claim, pricing_request)
         ipps_output = IppsOutput()
         ipps_output.claim_id = claim.claimid
         ipps_output.from_java(pricing_response)

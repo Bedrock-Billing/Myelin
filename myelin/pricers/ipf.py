@@ -501,7 +501,7 @@ class IpfClient:
                 ipf_output,
                 ipsf_provider if ipsf_provider is not None else IPSFProvider(),
             )
-        pricing_response = self.process_claim(claim, pricing_request, **kwargs)
+        pricing_response = self.process_claim(claim, pricing_request)
         ipf_output = IpfOutput()
         ipf_output.claim_id = claim.claimid
         ipf_output.from_java(pricing_response)
