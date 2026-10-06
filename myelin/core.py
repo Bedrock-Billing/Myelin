@@ -317,8 +317,12 @@ class Myelin:
         claim: Claim,
         ipsf_provider: IPSFProvider | None,
         opsf_provider: OPSFProvider | None,
-    ) -> None:
-        """Generate a list of modules based on the claim type."""
+    ) -> list[Modules]:
+        """Generate a list of modules based on the claim type.
+
+        Returns the generated list; the claim itself is not modified.
+        """
+        auto_modules: list[Modules] = []
         provider_type = ""
         if ipsf_provider is not None:
             if ipsf_provider.provider_type and ipsf_provider.provider_type != "":
@@ -334,17 +338,17 @@ class Myelin:
         # ----------------------------------------------------------------------
         mods_set = False
         if provider_obj is not None:
-            modules = provider_obj.get("modules", None)
-            if modules is not None:
-                for module in modules:
+            provider_modules = provider_obj.get("modules", None)
+            if provider_modules is not None:
+                for module in provider_modules:
                     if isinstance(module, Modules):
-                        claim.modules.append(module)
+                        auto_modules.append(module)
                         mods_set = True
             # Remove specialized groupers if their assesment data is missing
-            if Modules.HHAG in claim.modules and claim.oasis_assessment is None:
-                claim.modules.remove(Modules.HHAG)
-            if Modules.CMG in claim.modules and claim.irf_pai is None:
-                claim.modules.remove(Modules.CMG)
+            if Modules.HHAG in auto_modules and claim.oasis_assessment is None:
+                auto_modules.remove(Modules.HHAG)
+            if Modules.CMG in auto_modules and claim.irf_pai is None:
+                auto_modules.remove(Modules.CMG)
 
         # --------------------------------------------------------------------------
         # Generate modules based on Bill Type
@@ -354,14 +358,14 @@ class Myelin:
         for line in claim.lines:
             if line.revenue_code == "0024":
                 if claim.irf_pai is not None:
-                    claim.modules.append(Modules.CMG)
-                claim.modules.append(Modules.IRF)
+                    auto_modules.append(Modules.CMG)
+                auto_modules.append(Modules.IRF)
                 mods_set = True
                 break
         # SNF
         for line in claim.lines:
             if line.revenue_code == "0022":
-                claim.modules.append(Modules.SNF)
+                auto_modules.append(Modules.SNF)
                 mods_set = True
                 break
 
@@ -381,36 +385,38 @@ class Myelin:
             )
             # FQHC
             if bill_type.startswith("77"):
-                claim.modules.append(Modules.IOCE)
-                claim.modules.append(Modules.FQHC)
+                auto_modules.append(Modules.IOCE)
+                auto_modules.append(Modules.FQHC)
             elif bill_type.startswith("72"):  # ESRD
-                claim.modules.append(Modules.IOCE)
-                claim.modules.append(Modules.ESRD)
+                auto_modules.append(Modules.IOCE)
+                auto_modules.append(Modules.ESRD)
             elif bill_type.startswith("83"):  # ASCs
-                claim.modules.append(Modules.ASC)
+                auto_modules.append(Modules.ASC)
             elif bill_type_facility == "2":  # SNF, secondary to rev code lookup above
                 if bill_type_type_of_care in ("2", "3"):
-                    claim.modules.append(Modules.IOCE)
-                claim.modules.append(Modules.SNF)
+                    auto_modules.append(Modules.IOCE)
+                auto_modules.append(Modules.SNF)
             elif bill_type_facility == "3":  # Home Health
                 if claim.oasis_assessment is not None:
-                    claim.modules.append(Modules.HHAG)
-                claim.modules.append(Modules.HHA)
+                    auto_modules.append(Modules.HHAG)
+                auto_modules.append(Modules.HHA)
             elif bill_type.startswith("11"):
-                claim.modules.append(Modules.MCE)
-                claim.modules.append(Modules.MSDRG)
+                auto_modules.append(Modules.MCE)
+                auto_modules.append(Modules.MSDRG)
                 if len(ipsf_ccn) >= 3:
                     if ipsf_ccn[2] in ("4", "S", "M"):
-                        claim.modules.append(Modules.PSYCH)
+                        auto_modules.append(Modules.PSYCH)
                     elif ipsf_ccn[2] == "2":
-                        claim.modules.append(Modules.LTCH)
+                        auto_modules.append(Modules.LTCH)
                     else:
-                        claim.modules.append(Modules.IPPS)
+                        auto_modules.append(Modules.IPPS)
                 else:
-                    claim.modules.append(Modules.IPPS)
+                    auto_modules.append(Modules.IPPS)
             else:
-                claim.modules.append(Modules.IOCE)
-                claim.modules.append(Modules.OPPS)
+                auto_modules.append(Modules.IOCE)
+                auto_modules.append(Modules.OPPS)
+
+        return auto_modules
 
     def process(self, claim: Claim, **kwargs: object) -> MyelinOutput:
         """Process a claim through the appropriate modules based on its configuration."""
@@ -461,17 +467,19 @@ class Myelin:
                 return results
 
         if Modules.AUTO in unique_modules:
-            if len(claim.modules) > 1:
+            if len(unique_modules) > 1:
                 results.error = (
                     "Auto module cannot be paired with any other module request"
                 )
                 return results
-            self._generate_auto_modules(claim, ipsf_provider, opsf_provider)
+            auto_modules = self._generate_auto_modules(
+                claim, ipsf_provider, opsf_provider
+            )
 
             # Recalculate unique_modules after auto-generation
             seen = set()
             unique_modules = []
-            for module in claim.modules:
+            for module in auto_modules:
                 if module not in seen:
                     seen.add(module)
                     unique_modules.append(module)

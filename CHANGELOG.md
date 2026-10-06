@@ -5,6 +5,18 @@ All notable changes to Myelin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`AUTO` mode mutating the caller's claim** - `Myelin.process()` no longer
+  appends the auto-generated modules to `claim.modules`; the claim keeps the
+  modules the caller set. Previously a claim processed with `[AUTO]` came back
+  as e.g. `[AUTO, MCE, MSDRG, IPPS]`, so processing it a second time (retries,
+  re-runs, reused template claims) failed with "Auto module cannot be paired
+  with any other module request". `[AUTO, AUTO]` is now treated as `[AUTO]`
+  instead of being rejected.
+
 ## [1.0.2] - 2026-10-06
 
 ### Fixed
