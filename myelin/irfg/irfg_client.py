@@ -16,6 +16,8 @@ from myelin.plugins import apply_client_methods, run_client_load_classes
 
 from .irfg_output import IrfgOutput
 
+MAX_DX_CODES = 25  # principal + secondaries sent to the CMG grouper
+
 ASSESSMENT_TAGS: dict[str, str] = {
     "eating_self_admsn_cd": "GG0130A1",
     "oral_hygne_admsn_cd": "GG0130B1",
@@ -122,17 +124,17 @@ class IrfgClient:
         claim_obj.setAdmissionDate(self.py_date_to_java_date(claim.admit_date))
         claim_obj.setImpairmentGroup(claim.irf_pai.impairment_admit_group_code)
         claim_obj.setDischargeDate(self.py_date_to_java_date(claim.thru_date))
-        dx_idx = 0
+        codes: list[str] = []
+        if claim.principal_dx and claim.principal_dx.code:
+            codes.append(claim.principal_dx.code)
+        codes.extend(
+            dx.code
+            for dx in claim.secondary_dxs
+            if dx and dx.code and dx.code.strip()
+        )
         # Do not strip decimal points out of Dx Codes, CMS's CMG Grouper validates the pattern of ICD-10 codes
-        if claim.principal_dx:
-            claim_obj.addCode(self.dx_code_class(claim.principal_dx.code.ljust(8, "^")))
-            dx_idx += 1
-        while dx_idx < len(claim.secondary_dxs) and dx_idx < 25:
-            if claim.secondary_dxs[dx_idx]:
-                claim_obj.addCode(
-                    self.dx_code_class(claim.secondary_dxs[dx_idx].code.ljust(8, "^"))
-                )
-            dx_idx += 1
+        for code in codes[:MAX_DX_CODES]:
+            claim_obj.addCode(self.dx_code_class(code.ljust(8, "^")))
         assessments = self.create_assessments(claim.irf_pai)
         if assessments:
             claim_obj.setAssessments(assessments)
