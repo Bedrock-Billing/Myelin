@@ -5,6 +5,34 @@ All notable changes to Myelin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-10-06
+
+### Fixed
+
+- **IPPS / IPF / LTCH `process()` kwargs** - `process()` no longer forwards
+  caller kwargs (such as `session`) to `process_claim()`, which doesn't accept
+  them. Previously `Myelin.process(claim, session=...)` raised an uncaught
+  `TypeError` for any claim routed to IPPS, PSYCH, or LTCH.
+- **IRF CMG grouper secondary diagnoses** - the first secondary diagnosis is now
+  sent to the CMG grouper. Previously it was skipped whenever a principal
+  diagnosis was present, which silently dropped comorbidities listed first and
+  produced a lower-tier CMG and payment. Blank or `None` secondary codes are
+  now skipped instead of raising or being sent as padding, and the cap of 25
+  codes now counts the principal plus secondaries consistently.
+
+## [1.0.1] - 2026-08-27
+
+### Fixed
+
+- **CMSDownloader outdated JARs** - the downloader now replaces superseded CMS
+  JAR releases instead of keeping stale ones alongside or in place of them.
+  - Discovers and selects the latest CMS component releases.
+  - Tracks installed release identities to avoid redundant downloads.
+  - Replaces superseded JARs transactionally, with rollback on failure.
+  - Validates downloaded packages before replacing existing files.
+  - Compares multi-part versions correctly.
+  - Fails builds when downloads or environment validation fail.
+
 ## [1.0.0] - 2026-07-10
 
 First stable release of Myelin. Provides a unified Python interface to the
