@@ -1,9 +1,9 @@
 import logging
 import os
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from threading import RLock
 from types import TracebackType
-from typing import Annotated, Literal
+from typing import Annotated, Iterator, Literal
 
 import jpype
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,7 +11,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from myelin.converter import ICDConverter
 from myelin.database.manager import DatabaseManager
 from myelin.helpers.cms_downloader import CMSDownloader
-from myelin.helpers.utils import PROVIDER_TYPES, JavaRuntimeError, ProviderDataError
+from myelin.helpers.utils import (
+    PROVIDER_TYPES,
+    JavaRuntimeError,
+    PricerRuntimeError,
+    ProviderDataError,
+)
 from myelin.hhag import HhagClient, HhagOutput
 from myelin.input.claim import Claim, Modules
 from myelin.ioce import IoceClient, IoceOutput
@@ -60,6 +65,16 @@ INPATIENT_PRICERS: set[Modules] = {
     Modules.LTCH,
     Modules.IRF,
 }
+
+
+def _describe_error(
+    e: JavaRuntimeError | PricerRuntimeError | ProviderDataError,
+) -> str:
+    """Format an error as "CODE: description - explanation"."""
+    message = f"{e.code}: {e.description.rstrip('.')}"
+    if e.explanation:
+        message += f" - {e.explanation}"
+    return message
 
 
 class MyelinOutput(BaseModel):
@@ -452,6 +467,11 @@ class Myelin:
                 seen.add(module)
                 unique_modules.append(module)
 
+        # A type of bill ending in 0 is a non-payment/zero claim
+        if claim.bill_type.endswith("0"):
+            results.error = f"Bill type {claim.bill_type} is a non payment bill"
+            return results
+
         # Determine required provider type upfront based on all modules
         ipsf_needed = any(m in IPSF_PRICERS for m in unique_modules)
         opsf_needed = any(m in OPSF_PRICERS for m in unique_modules)
@@ -470,13 +490,13 @@ class Myelin:
             if self.db_manager.engine is None:
                 results.error = "No database connection to fetch provider information"
                 return results
-            try:
-                if ipsf_provider is not None:
-                    ipsf_provider.from_claim(claim, self.db_manager.engine, **kwargs)
-                if opsf_provider is not None:
-                    opsf_provider.from_claim(claim, self.db_manager.engine, **kwargs)
-            except ProviderDataError as e:
-                results.error = e.explanation
+            if ipsf_provider is not None and not self._load_provider(
+                ipsf_provider, "IPSF", claim, results, **kwargs
+            ):
+                return results
+            if opsf_provider is not None and not self._load_provider(
+                opsf_provider, "OPSF", claim, results, **kwargs
+            ):
                 return results
 
         if Modules.AUTO in unique_modules:
@@ -521,31 +541,27 @@ class Myelin:
                     )
                     return results
 
-                try:
-                    if new_ipsf_needed and ipsf_provider is None:
-                        ipsf_provider = IPSFProvider()
-                        ipsf_provider.from_claim(
-                            claim, self.db_manager.engine, **kwargs
-                        )
+                if new_ipsf_needed and ipsf_provider is None:
+                    ipsf_provider = IPSFProvider()
+                    if not self._load_provider(
+                        ipsf_provider, "IPSF", claim, results, **kwargs
+                    ):
+                        return results
+                if new_opsf_needed and opsf_provider is None:
+                    opsf_provider = OPSFProvider()
+                    if not self._load_provider(
+                        opsf_provider, "OPSF", claim, results, **kwargs
+                    ):
+                        return results
 
-                    if new_opsf_needed and opsf_provider is None:
-                        opsf_provider = OPSFProvider()
-                        opsf_provider.from_claim(
-                            claim, self.db_manager.engine, **kwargs
-                        )
-                except ProviderDataError as e:
-                    results.error = e.explanation
-                    return results
-        else:
-            if claim.bill_type.endswith("0"):
-                results.error = f"Bill type {claim.bill_type} is a non payment bill"
-                return results
-
-        try:
-            # Editors
-            if Modules.MCE in unique_modules:
+        # Each module records its own failure so the others still run. Modules
+        # that need an upstream result report its absence in their return code.
+        # Editors
+        if Modules.MCE in unique_modules:
+            with self._record_module_errors(results, Modules.MCE, claim):
                 self._process_editor(Modules.MCE, self.mce_client, results, claim)
-            if Modules.IOCE in unique_modules:
+        if Modules.IOCE in unique_modules:
+            with self._record_module_errors(results, Modules.IOCE, claim):
                 self._process_editor(
                     Modules.IOCE,
                     self.ioce_client,
@@ -555,8 +571,9 @@ class Myelin:
                     **kwargs,
                 )
 
-            # Groupers
-            if Modules.MSDRG in unique_modules:
+        # Groupers
+        if Modules.MSDRG in unique_modules:
+            with self._record_module_errors(results, Modules.MSDRG, claim):
                 self._process_grouper(
                     Modules.MSDRG,
                     self.drg_client,
@@ -564,13 +581,16 @@ class Myelin:
                     claim,
                     icd_converter=self.icd10_converter,
                 )
-            if Modules.HHAG in unique_modules:
+        if Modules.HHAG in unique_modules:
+            with self._record_module_errors(results, Modules.HHAG, claim):
                 self._process_grouper(Modules.HHAG, self.hhag_client, results, claim)
-            if Modules.CMG in unique_modules:
+        if Modules.CMG in unique_modules:
+            with self._record_module_errors(results, Modules.CMG, claim):
                 self._process_grouper(Modules.CMG, self.irfg_client, results, claim)
 
-            # Pricers - pass the appropriate provider
-            if Modules.IPPS in unique_modules:
+        # Pricers - pass the appropriate provider
+        if Modules.IPPS in unique_modules:
+            with self._record_module_errors(results, Modules.IPPS, claim):
                 self._process_pricer_ipps(
                     self.ipps_client,
                     results,
@@ -579,7 +599,8 @@ class Myelin:
                     results.msdrg,
                     **kwargs,
                 )
-            if Modules.OPPS in unique_modules:
+        if Modules.OPPS in unique_modules:
+            with self._record_module_errors(results, Modules.OPPS, claim):
                 self._process_pricer_opps(
                     self.opps_client,
                     results,
@@ -588,7 +609,8 @@ class Myelin:
                     results.ioce,
                     **kwargs,
                 )
-            if Modules.PSYCH in unique_modules:
+        if Modules.PSYCH in unique_modules:
+            with self._record_module_errors(results, Modules.PSYCH, claim):
                 self._process_pricer_ipf(
                     self.ipf_client,
                     results,
@@ -597,7 +619,8 @@ class Myelin:
                     results.msdrg,
                     **kwargs,
                 )
-            if Modules.LTCH in unique_modules:
+        if Modules.LTCH in unique_modules:
+            with self._record_module_errors(results, Modules.LTCH, claim):
                 self._process_pricer_ltch(
                     self.ltch_client,
                     results,
@@ -606,7 +629,8 @@ class Myelin:
                     results.msdrg,
                     **kwargs,
                 )
-            if Modules.IRF in unique_modules:
+        if Modules.IRF in unique_modules:
+            with self._record_module_errors(results, Modules.IRF, claim):
                 self._process_pricer_irf(
                     self.irf_client,
                     results,
@@ -615,13 +639,16 @@ class Myelin:
                     results.cmg,
                     **kwargs,
                 )
-            if Modules.HOSPICE in unique_modules:
+        if Modules.HOSPICE in unique_modules:
+            with self._record_module_errors(results, Modules.HOSPICE, claim):
                 self._process_pricer_hospice(self.hospice_client, results, claim)
-            if Modules.SNF in unique_modules:
+        if Modules.SNF in unique_modules:
+            with self._record_module_errors(results, Modules.SNF, claim):
                 self._process_pricer_snf(
                     self.snf_client, results, claim, ipsf_provider, **kwargs
                 )
-            if Modules.HHA in unique_modules:
+        if Modules.HHA in unique_modules:
+            with self._record_module_errors(results, Modules.HHA, claim):
                 self._process_pricer_hha(
                     self.hha_client,
                     results,
@@ -630,30 +657,75 @@ class Myelin:
                     results.hhag,
                     **kwargs,
                 )
-            if Modules.ESRD in unique_modules:
+        if Modules.ESRD in unique_modules:
+            with self._record_module_errors(results, Modules.ESRD, claim):
                 self._process_pricer_esrd(
                     self.esrd_client, results, claim, opsf_provider, **kwargs
                 )
-            if Modules.FQHC in unique_modules:
+        if Modules.FQHC in unique_modules:
+            with self._record_module_errors(results, Modules.FQHC, claim):
                 self._process_pricer_fqhc(
                     self.fqhc_client, results, claim, results.ioce
                 )
-            if Modules.ASC in unique_modules:
+        if Modules.ASC in unique_modules:
+            with self._record_module_errors(results, Modules.ASC, claim):
                 self._process_pricer_asc(
                     self.asc_client, results, claim, opsf_provider, **kwargs
                 )
 
-            return results
-        except JavaRuntimeError as e:
-            results.error = e.explanation
-            return results
+        return results
+
+    @staticmethod
+    def _add_error(results: MyelinOutput, source: str, message: str) -> None:
+        """Append an error tagged with its source, e.g. "[MSDRG] JERR: ..."."""
+        entry = f"[{source}] {message}"
+        results.error = f"{results.error}; {entry}" if results.error else entry
+
+    def _load_provider(
+        self,
+        provider: IPSFProvider | OPSFProvider,
+        source: str,
+        claim: Claim,
+        results: MyelinOutput,
+        **kwargs: object,
+    ) -> bool:
+        """Fill a provider from the database. On failure, record the error and
+        return False."""
+        engine = self.db_manager.engine
+        if engine is None:
+            self._add_error(
+                results, source, "No database connection to fetch provider information"
+            )
+            return False
+        try:
+            provider.from_claim(claim, engine, **kwargs)
+        except ProviderDataError as e:
+            self._add_error(results, source, _describe_error(e))
+            return False
+        return True
+
+    @contextmanager
+    def _record_module_errors(
+        self, results: MyelinOutput, module: Modules, claim: Claim
+    ) -> Iterator[None]:
+        """Record a module's failure on the results instead of stopping the
+        remaining modules."""
+        try:
+            yield
+        except (JavaRuntimeError, PricerRuntimeError, ProviderDataError) as e:
+            self._add_error(results, module.value, _describe_error(e))
+        except Exception:
+            self.logger.exception(
+                f"Unexpected error in {module.value} for claim {claim.claimid}"
+            )
+            self._add_error(results, module.value, "UNX: Unexpected error")
 
     def _process_editor(
         self, module: Modules, client, results: MyelinOutput, claim: Claim, **kwargs
     ) -> None:
         """Process an editor module with null-checked client."""
         if client is None:
-            results.error = f"{module.value} client not initialized"
+            self._add_error(results, module.value, "client not initialized")
             return
         # Map module to correct output attribute
         attr_name = module.value.lower()
@@ -664,7 +736,7 @@ class Myelin:
     ) -> None:
         """Process a grouper module with null-checked client."""
         if client is None:
-            results.error = f"{module.value} client not initialized"
+            self._add_error(results, module.value, "client not initialized")
             return
         # Map module to correct output attribute (e.g., MSDRG -> msdrg, CMG -> cmg)
         attr_name = module.value.lower()
@@ -681,7 +753,7 @@ class Myelin:
     ) -> None:
         """Process IPPS pricer."""
         if client is None:
-            results.error = "IPPS client not initialized"
+            self._add_error(results, "IPPS", "client not initialized")
             return
         results.ipps, results.ipsf = client.process(claim, provider, msdrg, **kwargs)
 
@@ -696,7 +768,7 @@ class Myelin:
     ) -> None:
         """Process OPPS pricer."""
         if client is None:
-            results.error = "OPPS client not initialized"
+            self._add_error(results, "OPPS", "client not initialized")
             return
         results.opps, results.opsf = client.process(claim, provider, ioce, **kwargs)
 
@@ -711,7 +783,7 @@ class Myelin:
     ) -> None:
         """Process IPF (Psych) pricer."""
         if client is None:
-            results.error = "IPF client not initialized"
+            self._add_error(results, "PSYCH", "client not initialized")
             return
         results.psych, results.ipsf = client.process(claim, provider, msdrg, **kwargs)
 
@@ -726,7 +798,7 @@ class Myelin:
     ) -> None:
         """Process LTCH pricer."""
         if client is None:
-            results.error = "LTCH client not initialized"
+            self._add_error(results, "LTCH", "client not initialized")
             return
         results.ltch, results.ipsf = client.process(claim, provider, msdrg, **kwargs)
 
@@ -741,7 +813,7 @@ class Myelin:
     ) -> None:
         """Process IRF pricer."""
         if client is None:
-            results.error = "IRF client not initialized"
+            self._add_error(results, "IRF", "client not initialized")
             return
         results.irf, results.ipsf = client.process(claim, provider, cmg, **kwargs)
 
@@ -754,7 +826,7 @@ class Myelin:
     ) -> None:
         """Process Hospice pricer."""
         if client is None:
-            results.error = "Hospice client not initialized"
+            self._add_error(results, "HOSPICE", "client not initialized")
             return
         results.hospice = client.process(claim)
 
@@ -768,7 +840,7 @@ class Myelin:
     ) -> None:
         """Process SNF pricer."""
         if client is None:
-            results.error = "SNF client not initialized"
+            self._add_error(results, "SNF", "client not initialized")
             return
         results.snf, results.ipsf = client.process(claim, provider, **kwargs)
 
@@ -783,7 +855,7 @@ class Myelin:
     ) -> None:
         """Process HHA pricer."""
         if client is None:
-            results.error = "HHA client not initialized"
+            self._add_error(results, "HHA", "client not initialized")
             return
         results.hha, results.ipsf = client.process(claim, provider, hhag, **kwargs)
 
@@ -797,7 +869,7 @@ class Myelin:
     ) -> None:
         """Process ESRD pricer."""
         if client is None:
-            results.error = "ESRD client not initialized"
+            self._add_error(results, "ESRD", "client not initialized")
             return
         results.esrd, results.opsf = client.process(claim, provider, **kwargs)
 
@@ -810,10 +882,10 @@ class Myelin:
     ) -> None:
         """Process FQHC pricer."""
         if client is None:
-            results.error = "FQHC client not initialized"
+            self._add_error(results, "FQHC", "client not initialized")
             return
         if ioce is None:
-            results.error = "FQHC pricer requires IOCE module to be run"
+            self._add_error(results, "FQHC", "requires the IOCE module to be run")
             return
         results.fqhc = client.process(claim, ioce)
 
@@ -827,6 +899,6 @@ class Myelin:
     ) -> None:
         """Process ASC pricer."""
         if client is None:
-            results.error = "ASC client not initialized"
+            self._add_error(results, "ASC", "client not initialized")
             return
         results.asc = client.process(claim, provider, **kwargs)

@@ -7,12 +7,11 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 
 from myelin.helpers.utils import (
+    pricer_error_return_code,
     PricerRuntimeError,
-    ProviderDataError,
     ReturnCode,
     create_supported_years,
     float_or_none,
-    handle_java_exceptions,
     py_date_to_java_date,
 )
 from myelin.input.claim import Claim
@@ -336,7 +335,6 @@ class IrfClient:
             return self.dispatch_obj.process(pricing_request)
         raise ValueError("Dispatch object does not have a process method.")
 
-    @handle_java_exceptions
     def process(
         self,
         claim: Claim,
@@ -352,38 +350,21 @@ class IrfClient:
         """
         if not isinstance(claim, Claim):
             raise ValueError("claim must be an instance of Claim")
+        irf_output = IrfOutput()
+        irf_output.claim_id = claim.claimid
         try:
             pricing_request, ipsf_provider = self.create_input_claim(
                 claim, ipsf_provider, irfg, **kwargs
             )
-        except ProviderDataError as e:
-            irf_output = IrfOutput()
-            irf_output.claim_id = claim.claimid
-            irf_output.return_code = e.to_return_code()
-            return irf_output, IPSFProvider()
-        except PricerRuntimeError as e:
-            irf_output = IrfOutput()
-            irf_output.claim_id = claim.claimid
-            irf_output.return_code = e.to_return_code()
-            return (
-                irf_output,
-                ipsf_provider if ipsf_provider is not None else IPSFProvider(),
-            )
+            pricing_response = self.process_claim(claim, pricing_request)
+            irf_output.from_java(pricing_response)
         except Exception as e:
-            self.logger.error(f"Error processing claim {claim.claimid}: {e}")
             irf_output = IrfOutput()
             irf_output.claim_id = claim.claimid
-            irf_output.return_code = ReturnCode(
-                code="UNX",
-                description="Unexpected error occurred",
-                explanation="Unexpected error occurred",
+            irf_output.return_code = pricer_error_return_code(
+                e, self.logger, claim.claimid
             )
-            return (
-                irf_output,
-                ipsf_provider if ipsf_provider is not None else IPSFProvider(),
-            )
-        pricing_response = self.process_claim(claim, pricing_request)
-        irf_output = IrfOutput()
-        irf_output.claim_id = claim.claimid
-        irf_output.from_java(pricing_response)
-        return irf_output, ipsf_provider
+        return (
+            irf_output,
+            ipsf_provider if ipsf_provider is not None else IPSFProvider(),
+        )

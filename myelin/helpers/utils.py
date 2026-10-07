@@ -2,6 +2,7 @@ import functools
 import io
 from contextlib import redirect_stderr
 from datetime import datetime
+from logging import Logger
 from os import getenv
 from typing import Callable, ParamSpec, Protocol, TypeVar
 
@@ -246,6 +247,63 @@ def create_supported_years(pps: str) -> jpype.JObject:
     return java_array
 
 
+def _java_exception_message(where: str, java_ex: jpype.JException) -> str:
+    """Describe a Java exception, including its Java stack trace when available."""
+    java_class = java_ex.__class__.__name__
+    java_message = str(java_ex)
+
+    # Try to get more detailed information from the Java exception
+    java_stack_trace = None
+    if hasattr(java_ex, "stacktrace"):
+        java_stack_trace = java_ex.stacktrace()
+    elif hasattr(java_ex, "printStackTrace"):
+        string_io = io.StringIO()
+        try:
+            with redirect_stderr(string_io):
+                java_ex.printStackTrace()
+            java_stack_trace = string_io.getvalue()
+        except Exception:
+            java_stack_trace = "Stack trace not available"
+
+    error_msg = f"Java exception occurred in {where}:\n"
+    error_msg += f"Java Exception Type: {java_class}\n"
+    error_msg += f"Java Message: {java_message}\n"
+    if java_stack_trace:
+        error_msg += f"Java Stack Trace:\n{java_stack_trace}"
+    return error_msg
+
+
+def _internal_java_error() -> JavaRuntimeError:
+    return JavaRuntimeError(
+        code="JERR",
+        description="An internal error occurred during processing through a CMS Java module.",
+        explanation="An internal error occurred in the Java processing module. Please contact the system administrator for assistance.",
+    )
+
+
+def pricer_error_return_code(
+    error: Exception, logger: Logger, claim_id: str | None
+) -> ReturnCode:
+    """Turn an exception raised while pricing a claim into a ReturnCode.
+
+    Must be called from inside the ``except`` block that caught ``error``.
+    Myelin's own errors carry their return code. A raw Java exception is logged
+    with its Java stack trace and reported as JERR. Anything else is a bug, so
+    it is logged with its traceback and reported as UNX.
+    """
+    if isinstance(error, (ProviderDataError, PricerRuntimeError, JavaRuntimeError)):
+        return error.to_return_code()
+    if isinstance(error, jpype.JException):
+        logger.error(_java_exception_message(f"claim {claim_id}", error))
+        return _internal_java_error().to_return_code()
+    logger.exception(f"Unexpected error for claim {claim_id}")
+    return ReturnCode(
+        code="UNX",
+        description="Unexpected error",
+        explanation=f"Unexpected error occurred ({type(error).__name__}); see logs for details.",
+    )
+
+
 P = ParamSpec("P")
 T = TypeVar("T")
 
@@ -263,28 +321,7 @@ def handle_java_exceptions(func: Callable[P, T]) -> Callable[P, T]:
         try:
             return func(*args, **kwargs)
         except jpype.JException as java_ex:
-            # Extract Java exception details
-            java_class = java_ex.__class__.__name__
-            java_message = str(java_ex)
-
-            # Try to get more detailed information from the Java exception
-            java_stack_trace = None
-            if hasattr(java_ex, "stacktrace"):
-                java_stack_trace = java_ex.stacktrace()
-            elif hasattr(java_ex, "printStackTrace"):
-                string_io = io.StringIO()
-                try:
-                    with redirect_stderr(string_io):
-                        java_ex.printStackTrace()
-                    java_stack_trace = string_io.getvalue()
-                except Exception:
-                    java_stack_trace = "Stack trace not available"
-
-            error_msg = f"Java exception occurred in {func.__name__}:\n"
-            error_msg += f"Java Exception Type: {java_class}\n"
-            error_msg += f"Java Message: {java_message}\n"
-            if java_stack_trace:
-                error_msg += f"Java Stack Trace:\n{java_stack_trace}"
+            error_msg = _java_exception_message(func.__name__, java_ex)
 
             # Check if self exists, if so, check if logger exists on self and log error
             if args and hasattr(args[0], "logger"):
@@ -292,10 +329,6 @@ def handle_java_exceptions(func: Callable[P, T]) -> Callable[P, T]:
             else:
                 print(error_msg)
 
-            raise JavaRuntimeError(
-                code="JERR",
-                description="An internal error occurred during processing through a CMS Java module.",
-                explanation="An internal error occurred in the Java processing module. Please contact the system administrator for assistance.",
-            )
+            raise _internal_java_error()
 
     return wrapper

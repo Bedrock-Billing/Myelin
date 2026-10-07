@@ -9,11 +9,11 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 
 from myelin.helpers.utils import (
+    pricer_error_return_code,
     PricerRuntimeError,
     ReturnCode,
     create_supported_years,
     float_or_none,
-    handle_java_exceptions,
     py_date_to_java_date,
 )
 from myelin.input.claim import Claim
@@ -868,7 +868,6 @@ class IppsClient:
             return self.dispatch_obj.process(pricing_request)
         raise ValueError("Dispatch object does not have a process method.")
 
-    @handle_java_exceptions
     def process(
         self,
         claim: Claim,
@@ -888,33 +887,21 @@ class IppsClient:
         self.logger.debug(
             f"IppsClient processing claim on thread {current_thread().ident}"
         )
+        ipps_output = IppsOutput()
+        ipps_output.claim_id = claim.claimid
         try:
             pricing_request, ipsf_provider = self.create_input_claim(
                 claim, ipsf_provider, drg_output, **kwargs
             )
-        except PricerRuntimeError as e:
-            ipps_output = IppsOutput()
-            ipps_output.claim_id = claim.claimid
-            ipps_output.return_code = e.to_return_code()
-            return (
-                ipps_output,
-                ipsf_provider if ipsf_provider is not None else IPSFProvider(),
-            )
+            pricing_response = self.process_claim(claim, pricing_request)
+            ipps_output.from_java(pricing_response)
         except Exception as e:
-            self.logger.error(f"Unexpected error occurred: {e}")
             ipps_output = IppsOutput()
             ipps_output.claim_id = claim.claimid
-            ipps_output.return_code = ReturnCode(
-                code="UNX",
-                description="Unexpected error",
-                explanation="Unexpected/Uncaught error occurred",
+            ipps_output.return_code = pricer_error_return_code(
+                e, self.logger, claim.claimid
             )
-            return (
-                ipps_output,
-                ipsf_provider if ipsf_provider is not None else IPSFProvider(),
-            )
-        pricing_response = self.process_claim(claim, pricing_request)
-        ipps_output = IppsOutput()
-        ipps_output.claim_id = claim.claimid
-        ipps_output.from_java(pricing_response)
-        return ipps_output, ipsf_provider
+        return (
+            ipps_output,
+            ipsf_provider if ipsf_provider is not None else IPSFProvider(),
+        )

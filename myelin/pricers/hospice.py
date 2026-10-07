@@ -7,15 +7,14 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 
 from myelin.helpers.utils import (
+    pricer_error_return_code,
     PricerRuntimeError,
     ReturnCode,
     create_supported_years,
     float_or_none,
-    handle_java_exceptions,
     py_date_to_java_date,
 )
 from myelin.input.claim import Claim
-from myelin.ioce import IoceOutput
 from myelin.plugins import apply_client_methods, run_client_load_classes
 from myelin.pricers.url_loader import UrlLoader
 
@@ -438,26 +437,17 @@ class HospiceClient:
         pricing_request.setClaimData(claim_object)
         return pricing_request
 
-    @handle_java_exceptions
     def process(self, claim: Claim) -> HospiceOutput:
-        try:
-            pricing_request = self.create_input_claim(claim)
-        except PricerRuntimeError as e:
-            hospice_output = HospiceOutput()
-            hospice_output.claim_id = claim.claimid
-            hospice_output.return_code = e.to_return_code()
-            return hospice_output
-        except Exception as e:
-            self.logger.error(f"Unexpected error occurred: {e}")
-            hospice_output = HospiceOutput()
-            hospice_output.claim_id = claim.claimid
-            hospice_output.return_code = ReturnCode(
-                code="UNX",
-                description="Unexpected error",
-                explanation="Unexpected/Uncaught error occurred",
-            )
-        pricing_response = self.dispatch_obj.process(pricing_request)
         hospice_output = HospiceOutput()
         hospice_output.claim_id = claim.claimid
-        hospice_output.from_java(pricing_response)
+        try:
+            pricing_request = self.create_input_claim(claim)
+            pricing_response = self.dispatch_obj.process(pricing_request)
+            hospice_output.from_java(pricing_response)
+        except Exception as e:
+            hospice_output = HospiceOutput()
+            hospice_output.claim_id = claim.claimid
+            hospice_output.return_code = pricer_error_return_code(
+                e, self.logger, claim.claimid
+            )
         return hospice_output

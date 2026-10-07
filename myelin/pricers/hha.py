@@ -7,12 +7,11 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 
 from myelin.helpers.utils import (
+    pricer_error_return_code,
     PricerRuntimeError,
-    ProviderDataError,
     ReturnCode,
     create_supported_years,
     float_or_none,
-    handle_java_exceptions,
     py_date_to_java_date,
 )
 from myelin.hhag import HhagOutput
@@ -410,7 +409,6 @@ class HhaClient:
             return self.dispatch_obj.process(pricing_request)
         raise ValueError("Dispatch object does not have a process method.")
 
-    @handle_java_exceptions
     def process(
         self,
         claim: Claim,
@@ -419,44 +417,31 @@ class HhaClient:
         **kwargs: object,
     ) -> tuple[HhaOutput, IPSFProvider]:
         """
-        Process the claim and return the SNF pricing response.
+        Process the claim and return the HHA pricing response.
 
         :param claim: Claim object to process.
-        :return: SnfOutput object.
+        :return: HhaOutput object and the IPSF provider.
         """
         if not isinstance(claim, Claim):
             raise ValueError("claim must be an instance of Claim")
+        hha_output = HhaOutput()
+        hha_output.claim_id = claim.claimid
         try:
             pricing_request, ipsf_provider = self.create_input_claim(
                 claim, ipsf_provider, hhag_output, **kwargs
             )
-        except ProviderDataError as e:
-            hha_output = HhaOutput()
-            hha_output.claim_id = claim.claimid
-            hha_output.return_code = e.to_return_code()
-            return hha_output, IPSFProvider()
-        except PricerRuntimeError as e:
-            hha_output = HhaOutput()
-            hha_output.claim_id = claim.claimid
-            hha_output.return_code = e.to_return_code()
-            return (
-                hha_output,
-                ipsf_provider if ipsf_provider is not None else IPSFProvider(),
+            pricing_response = self.process_claim(claim, pricing_request)
+            hha_output.from_java(pricing_response)
+            hha_output.hhrg_code = str(
+                pricing_request.getClaimData().getHhrgInputCode()
             )
         except Exception as e:
-            self.logger.error(f"Unexpected error occurred: {e}")
             hha_output = HhaOutput()
             hha_output.claim_id = claim.claimid
-            hha_output.return_code = ReturnCode(
-                code="UNX",
-                description="Unexpected error",
-                explanation="Unexpected/Uncaught error occurred",
+            hha_output.return_code = pricer_error_return_code(
+                e, self.logger, claim.claimid
             )
-            return hha_output, IPSFProvider()
-
-        pricing_response = self.process_claim(claim, pricing_request)
-        hha_output = HhaOutput()
-        hha_output.claim_id = claim.claimid
-        hha_output.from_java(pricing_response)
-        hha_output.hhrg_code = str(pricing_request.getClaimData().getHhrgInputCode())
-        return hha_output, ipsf_provider
+        return (
+            hha_output,
+            ipsf_provider if ipsf_provider is not None else IPSFProvider(),
+        )

@@ -9,11 +9,11 @@ from sqlalchemy.orm import Session
 
 from myelin.helpers import Zip9Data
 from myelin.helpers.utils import (
+    pricer_error_return_code,
     PricerRuntimeError,
     ReturnCode,
     create_supported_years,
     float_or_none,
-    handle_java_exceptions,
     py_date_to_java_date,
 )
 from myelin.input.claim import Claim
@@ -373,29 +373,19 @@ class FqhcClient:
         pricing_request.setClaimData(claim_object)
         return pricing_request
 
-    @handle_java_exceptions
     def process(
         self, claim: Claim, ioce_output: IoceOutput, **kwargs: object
     ) -> FqhcOutput:
-        try:
-            pricing_request = self.create_input_claim(claim, ioce_output, **kwargs)
-        except PricerRuntimeError as e:
-            fqhc_output = FqhcOutput()
-            fqhc_output.claim_id = claim.claimid
-            fqhc_output.return_code = e.to_return_code()
-            return fqhc_output
-        except Exception as e:
-            self.logger.error(f"Unexpected error occurred: {e}")
-            fqhc_output = FqhcOutput()
-            fqhc_output.claim_id = claim.claimid
-            fqhc_output.return_code = ReturnCode(
-                code="UNX",
-                description="Unexpected error",
-                explanation="Unexpected/Uncaught error occurred",
-            )
-            return fqhc_output
-        pricing_response = self.dispatch_obj.process(pricing_request)
         fqhc_output = FqhcOutput()
         fqhc_output.claim_id = claim.claimid
-        fqhc_output.from_java(pricing_response)
+        try:
+            pricing_request = self.create_input_claim(claim, ioce_output, **kwargs)
+            pricing_response = self.dispatch_obj.process(pricing_request)
+            fqhc_output.from_java(pricing_response)
+        except Exception as e:
+            fqhc_output = FqhcOutput()
+            fqhc_output.claim_id = claim.claimid
+            fqhc_output.return_code = pricer_error_return_code(
+                e, self.logger, claim.claimid
+            )
         return fqhc_output

@@ -7,8 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`MyelinOutput.error` format** - errors now name the module (or provider
+  file) they came from and include the error code, e.g.
+  `[MSDRG] JERR_INVALID_DATE: Invalid date format - Invalid patient status: XX`
+  or `[IPSF] P0003: Provider not found in IPSF - ...`. When several modules
+  fail, all errors are kept, separated by `; `, instead of only the last one.
+  Previously `error` held only the explanation text. Code that matches on
+  the old `error` strings needs updating.
+- **Non-payment bill types rejected in `AUTO` mode** - a bill type ending in
+  `0` (non-payment/zero claim) is now rejected in `AUTO` mode as well as with
+  explicit modules, before any provider lookup. Previously `AUTO` mode priced
+  these claims.
+
 ### Fixed
 
+- **One failing module stopped all later modules** - `Myelin.process()` now
+  runs each module independently. If one fails, its error is recorded and the
+  remaining modules still run; a pricer whose required input failed reports
+  that in its own return code (e.g. `IPPS03` when MS-DRG failed). Previously
+  an editor or grouper failure, such as an invalid patient status in MCE,
+  skipped every module after it, including pricing.
+- **Pricers raised instead of returning an output** - every pricer now
+  returns an output with a return code for any failure, including errors in
+  the CMS Java call (`JERR`) and while reading its response (`UNX`).
+  Previously only errors while building the Java input were caught.
+- **Pricer error paths dropped the provider** - HHA, SNF, IRF, and ESRD
+  returned an empty IPSF/OPSF provider on some errors, which blanked
+  `MyelinOutput.ipsf`/`opsf`. Every error path now returns the provider that
+  was passed in.
+- **Provider data errors reported as `UNX`** - IPPS, IPF, LTCH, Hospice, and
+  FQHC now report provider data errors with their own code and explanation
+  instead of "Unexpected error".
+- **Unexpected errors logged without a traceback** - unexpected pricer and
+  module errors are now logged with the full traceback and claim ID, and the
+  `UNX` explanation names the exception type.
+- **Hospice unexpected errors** - an unexpected error while building a
+  hospice claim raised `UnboundLocalError` instead of returning a `UNX` return
+  code.
 - **`AUTO` mode mutating the caller's claim** - `Myelin.process()` no longer
   appends the auto-generated modules to `claim.modules`; the claim keeps the
   modules the caller set. Previously a claim processed with `[AUTO]` came back

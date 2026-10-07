@@ -1,37 +1,13 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from myelin import IPSFProvider, Myelin, OPSFProvider
+from myelin import IPSFProvider, Myelin
 from myelin.helpers.claim_examples import claim_example
 from myelin.helpers.utils import ProviderDataError
 from myelin.input import IrfPai, LineItem, Modules
 
 MCE, MSDRG, IOCE, CMG = Modules.MCE, Modules.MSDRG, Modules.IOCE, Modules.CMG
-
-CLIENT_ATTRS = (
-    "mce_client ioce_client drg_client hhag_client irfg_client ipps_client "
-    "opps_client ipf_client ltch_client irf_client hospice_client snf_client "
-    "hha_client esrd_client fqhc_client asc_client"
-).split()
-
-
-@pytest.fixture
-def stub_myelin():
-    """Myelin instance with no JVM, a fake DB engine, and no clients."""
-    m = Myelin.__new__(Myelin)
-    m.db_manager = MagicMock()
-    m.db_manager.engine = object()
-    m.logger = MagicMock()
-    for attr in CLIENT_ATTRS:
-        setattr(m, attr, None)
-    m.icd10_converter = None
-    with (
-        patch.object(IPSFProvider, "from_claim", lambda *a, **k: None),
-        patch.object(OPSFProvider, "from_claim", lambda *a, **k: None),
-    ):
-        yield m
-
 
 def _inpatient_auto_claim():
     claim = claim_example()
@@ -188,11 +164,11 @@ def test_process_auto_provider_lookup_failure_is_not_fatal(stub_myelin):
     ((provider, modules),) = generated
     assert provider is None
     assert modules == [IOCE, Modules.FQHC]
-    assert result.error != "not found"
+    assert "[IPSF]" not in result.error
 
 
 def test_process_auto_provider_lookup_failure_reported_when_needed(stub_myelin):
     claim = _inpatient_auto_claim()
     with patch.object(IPSFProvider, "from_claim", _missing_provider):
         result = stub_myelin.process(claim)
-    assert result.error == "not found"
+    assert result.error == "[IPSF] P0002: Provider not found - not found"

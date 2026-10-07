@@ -8,12 +8,11 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 
 from myelin.helpers.utils import (
+    pricer_error_return_code,
     PricerRuntimeError,
-    ProviderDataError,
     ReturnCode,
     create_supported_years,
     float_or_none,
-    handle_java_exceptions,
     py_date_to_java_date,
 )
 from myelin.input.claim import Claim
@@ -290,7 +289,6 @@ class OppsClient:
         opps_claim_object.setIoceServiceLines(ioce_lines)
         return opps_claim_object
 
-    @handle_java_exceptions
     def process(
         self,
         claim: Claim,
@@ -301,51 +299,30 @@ class OppsClient:
         """
         Process the python claim object through the CMS OPPS Java Pricer.
         """
-        if self.db is None:
-            raise ValueError("Database connection is required for OppsClient.")
         self.logger.debug(
             f"OppsClient processing claim on thread {current_thread().ident}"
         )
-        pricing_request = self.opps_price_request_class()
-        provider_data = self.outpatient_prov_data_class()
-        opps_claim_object = None
+        opps_output = OppsOutput()
+        opps_output.claim_id = claim.claimid
         try:
-            opps_claim_object = self.create_input_claim(claim, ioce_output, **kwargs)
-            pricing_request.setClaimData(opps_claim_object)
-        except ProviderDataError as e:
-            self.logger.warning(
-                f"Provider data error for claim {claim.claimid}: {e.description} — {e.explanation}"
+            if self.db is None:
+                raise ValueError("Database connection is required for OppsClient.")
+            pricing_request = self.opps_price_request_class()
+            provider_data = self.outpatient_prov_data_class()
+            pricing_request.setClaimData(
+                self.create_input_claim(claim, ioce_output, **kwargs)
             )
-            opps_output = OppsOutput()
-            opps_output.claim_id = claim.claimid
-            opps_output.return_code = e.to_return_code()
-            return opps_output, opsf_provider
-        except PricerRuntimeError as e:
-            opps_output = OppsOutput()
-            opps_output.claim_id = claim.claimid
-            opps_output.return_code = e.to_return_code()
-            return (
-                opps_output,
-                opsf_provider if opsf_provider is not None else OPSFProvider(),
-            )
+            opsf_provider.set_java_values(provider_data, self)
+            pricing_request.setProviderData(provider_data)
+            pricing_response = self.dispatch_obj.process(pricing_request)
+            opps_output.from_java(pricing_response)
         except Exception as e:
             opps_output = OppsOutput()
             opps_output.claim_id = claim.claimid
-            opps_output.return_code = ReturnCode(
-                code="UNX",
-                description="Unexpected error",
-                explanation="An unexpected error occurred while processing the claim.",
+            opps_output.return_code = pricer_error_return_code(
+                e, self.logger, claim.claimid
             )
-            self.logger.error(f"Unexpected error for claim {claim.claimid}: {e}")
-            return (
-                opps_output,
-                opsf_provider if opsf_provider is not None else OPSFProvider(),
-            )
-        opsf_provider.set_java_values(provider_data, self)
-
-        pricing_request.setProviderData(provider_data)
-        pricing_response = self.dispatch_obj.process(pricing_request)
-        opps_output = OppsOutput()
-        opps_output.claim_id = claim.claimid
-        opps_output.from_java(pricing_response)
-        return opps_output, opsf_provider
+        return (
+            opps_output,
+            opsf_provider if opsf_provider is not None else OPSFProvider(),
+        )

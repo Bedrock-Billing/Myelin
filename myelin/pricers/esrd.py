@@ -7,12 +7,11 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 
 from myelin.helpers.utils import (
+    pricer_error_return_code,
     PricerRuntimeError,
-    ProviderDataError,
     ReturnCode,
     create_supported_years,
     float_or_none,
-    handle_java_exceptions,
     py_date_to_java_date,
 )
 from myelin.input.claim import Claim
@@ -952,54 +951,32 @@ class EsrdClient:
             return self.dispatch_obj.process(pricing_request)
         raise ValueError("Dispatch object does not have a process method.")
 
-    @handle_java_exceptions
     def process(
         self, claim: Claim, opsf_provider: OPSFProvider, **kwargs: object
     ) -> tuple[EsrdOutput, OPSFProvider]:
         """
-        Process the claim and return the SNF pricing response.
+        Process the claim and return the ESRD pricing response.
 
         :param claim: Claim object to process.
-        :return: SnfOutput object.
+        :return: EsrdOutput object and the OPSF provider.
         """
         if not isinstance(claim, Claim):
             raise ValueError("claim must be an instance of Claim")
+        esrd_output = EsrdOutput()
+        esrd_output.claim_id = claim.claimid
         try:
             pricing_request, opsf_provider = self.create_input_claim(
                 claim, opsf_provider, **kwargs
             )
-        except ProviderDataError as e:
-            self.logger.warning(
-                f"Provider data error for claim {claim.claimid}: {e.description} — {e.explanation}"
-            )
-            esrd_output = EsrdOutput()
-            esrd_output.claim_id = claim.claimid
-            esrd_output.return_code = e.to_return_code()
-            return esrd_output, OPSFProvider()
-        except PricerRuntimeError as e:
-            esrd_output = EsrdOutput()
-            esrd_output.claim_id = claim.claimid
-            esrd_output.return_code = e.to_return_code()
-            return (
-                esrd_output,
-                opsf_provider if opsf_provider is not None else OPSFProvider(),
-            )
+            pricing_response = self.process_claim(claim, pricing_request)
+            esrd_output.from_java(pricing_response)
         except Exception as e:
-            self.logger.error(f"Unexpected error occurred: {e}")
             esrd_output = EsrdOutput()
             esrd_output.claim_id = claim.claimid
-            esrd_output.return_code = ReturnCode(
-                code="UNX",
-                description="Unexpected error",
-                explanation="Unexpected/Uncaught error occurred",
+            esrd_output.return_code = pricer_error_return_code(
+                e, self.logger, claim.claimid
             )
-            return (
-                esrd_output,
-                opsf_provider if opsf_provider is not None else OPSFProvider(),
-            )
-
-        pricing_response = self.process_claim(claim, pricing_request)
-        esrd_output = EsrdOutput()
-        esrd_output.claim_id = claim.claimid
-        esrd_output.from_java(pricing_response)
-        return esrd_output, opsf_provider
+        return (
+            esrd_output,
+            opsf_provider if opsf_provider is not None else OPSFProvider(),
+        )
