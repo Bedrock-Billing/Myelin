@@ -15,7 +15,7 @@ from myelin.helpers.utils import (
     py_date_to_java_date,
 )
 from myelin.input.claim import Claim
-from myelin.plugins import apply_client_methods, run_client_load_classes
+from myelin.plugins import apply_plugin_methods, load_plugin_classes
 from myelin.pricers.url_loader import UrlLoader
 
 CARE_REV_CODES = {
@@ -240,15 +240,9 @@ class HospiceClient:
         else:
             self.logger = getLogger("HospiceClient")
         self.load_classes()
-        try:
-            run_client_load_classes(self)
-        except Exception:
-            pass
+        load_plugin_classes(self)
         self.pricer_setup()
-        try:
-            apply_client_methods(self)
-        except Exception:
-            pass
+        apply_plugin_methods(self)
 
     def load_classes(self) -> None:
         self.hospice_pricer_config_class = jpype.JClass(

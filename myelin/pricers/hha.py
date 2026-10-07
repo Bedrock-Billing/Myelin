@@ -16,7 +16,7 @@ from myelin.helpers.utils import (
 )
 from myelin.hhag import HhagOutput
 from myelin.input import Claim
-from myelin.plugins import apply_client_methods, run_client_load_classes
+from myelin.plugins import apply_plugin_methods, load_plugin_classes
 from myelin.pricers.ipsf import IPSFProvider
 from myelin.pricers.url_loader import UrlLoader
 
@@ -135,15 +135,9 @@ class HhaClient:
         else:
             self.logger = getLogger("HhaClient")
         self.load_classes()
-        try:
-            run_client_load_classes(self)
-        except Exception:
-            pass
+        load_plugin_classes(self)
         self.pricer_setup()
-        try:
-            apply_client_methods(self)
-        except Exception:
-            pass
+        apply_plugin_methods(self)
 
     def load_classes(self) -> None:
         self.hha_pricer_config_class = jpype.JClass(

@@ -1,10 +1,13 @@
 import importlib.metadata
+import logging
 import types
 from typing import Any, Callable
 
 import pluggy
 
 from .hookspecs import project_name
+
+logger = logging.getLogger(__name__)
 
 _plugin_manager: pluggy.PluginManager | None = None
 
@@ -19,8 +22,10 @@ def get_manager() -> pluggy.PluginManager:
             try:
                 pm.load_setuptools_entrypoints(name=ep.name, group=project_name)
             except Exception:
-                # Ignore malformed entry points
-                pass
+                # A broken plugin shouldn't stop Myelin from loading
+                logger.warning(
+                    "Failed to load plugin entry point %r", ep.name, exc_info=True
+                )
         _plugin_manager = pm
     return _plugin_manager
 
@@ -51,3 +56,31 @@ def apply_client_methods(client: Any) -> None:
         bound = types.MethodType(func, client)
         setattr(client, name, bound)
     setattr(client, "_plugins_applied", True)
+
+
+def load_plugin_classes(client: Any) -> None:
+    """Run ``client_load_classes`` hooks; log a failure instead of raising.
+
+    Plugins are optional, so a broken plugin shouldn't stop the client from
+    working, but the failure must be visible.
+    """
+    try:
+        run_client_load_classes(client)
+    except Exception:
+        logger.warning(
+            "Plugin client_load_classes failed for %s; continuing without it",
+            type(client).__name__,
+            exc_info=True,
+        )
+
+
+def apply_plugin_methods(client: Any) -> None:
+    """Bind ``client_methods`` hooks; log a failure instead of raising."""
+    try:
+        apply_client_methods(client)
+    except Exception:
+        logger.warning(
+            "Plugin client_methods failed for %s; continuing without them",
+            type(client).__name__,
+            exc_info=True,
+        )

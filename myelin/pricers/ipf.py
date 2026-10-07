@@ -18,7 +18,7 @@ from myelin.helpers.utils import (
 )
 from myelin.input.claim import Claim
 from myelin.msdrg.msdrg_output import MsdrgOutput
-from myelin.plugins import apply_client_methods, run_client_load_classes
+from myelin.plugins import apply_plugin_methods, load_plugin_classes
 from myelin.pricers.ipsf import IPSFProvider
 from myelin.pricers.url_loader import UrlLoader
 
@@ -174,15 +174,9 @@ class IpfClient:
         else:
             self.logger = getLogger("IpfClient")
         self.load_classes()
-        try:
-            run_client_load_classes(self)
-        except Exception:
-            pass
+        load_plugin_classes(self)
         self.pricer_setup()
-        try:
-            apply_client_methods(self)
-        except Exception:
-            pass
+        apply_plugin_methods(self)
 
     def load_classes(self) -> None:
         self.ipf_csv_ingest_class = jpype.JClass(

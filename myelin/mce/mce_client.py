@@ -4,7 +4,7 @@ import jpype
 
 from myelin.helpers.utils import JavaRuntimeError, handle_java_exceptions
 from myelin.input.claim import Claim
-from myelin.plugins import apply_client_methods, run_client_load_classes
+from myelin.plugins import apply_plugin_methods, load_plugin_classes
 
 from .mce_output import MceOutput
 
@@ -17,14 +17,8 @@ class MceClient:
             )
         self.load_enums()
         self.load_classes()
-        try:
-            run_client_load_classes(self)
-        except Exception:
-            pass
-        try:
-            apply_client_methods(self)
-        except Exception:
-            pass
+        load_plugin_classes(self)
+        apply_plugin_methods(self)
 
     def load_enums(self) -> None:
         self.icd_vers = jpype.JClass("gov.cms.editor.mce.component.edit.Const")
@@ -74,8 +68,7 @@ class MceClient:
 
         mce_record = self.mce_record.builder()
         mce_record.withIcdVersion(self.icd_vers.ICD_10)
-        if str(claim.patient_status).isnumeric():
-            mce_record.withDischargeStatus(self.java_int(int(claim.patient_status)))
+        mce_record.withDischargeStatus(self.java_int(int(claim.patient_status)))
         if claim.patient is not None:
             mce_record.withAgeYears(
                 self.java_int(claim.patient.age)

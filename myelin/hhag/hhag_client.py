@@ -3,6 +3,7 @@ import jpype
 from myelin.helpers.utils import JavaRuntimeError, handle_java_exceptions
 from myelin.hhag.hhag_output import HhagOutput
 from myelin.input.claim import Claim
+from myelin.plugins import apply_plugin_methods, load_plugin_classes
 
 
 class HhagClient:
@@ -12,7 +13,9 @@ class HhagClient:
                 "JVM is not started. Please start the JVM before using HhagClient."
             )
         self.load_classes()
+        load_plugin_classes(self)
         self.load_hhag_grouper()
+        apply_plugin_methods(self)
 
     def load_classes(self):
         self.hhag_claim_class: jpype.JClass = jpype.JClass(

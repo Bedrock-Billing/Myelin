@@ -16,7 +16,7 @@ from myelin.helpers.utils import (
 )
 from myelin.input.claim import Claim
 from myelin.irfg.irfg_output import IrfgOutput
-from myelin.plugins import apply_client_methods, run_client_load_classes
+from myelin.plugins import apply_plugin_methods, load_plugin_classes
 from myelin.pricers.ipsf import IPSFProvider
 from myelin.pricers.url_loader import UrlLoader
 
@@ -169,17 +169,10 @@ class IrfClient:
             self.logger = getLogger("IrfClient")
         self.load_classes()
         # Allow plugins to load extra/override Java classes before pricer setup
-        try:
-            run_client_load_classes(self)
-        except Exception:
-            # Plugins are optional; ignore failures here to avoid breaking core use
-            pass
+        load_plugin_classes(self)
         self.pricer_setup()
         # Bind plugin-provided methods to this client instance
-        try:
-            apply_client_methods(self)
-        except Exception:
-            pass
+        apply_plugin_methods(self)
 
     def load_classes(self) -> None:
         self.irf_pricer_config_class = jpype.JClass(

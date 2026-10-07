@@ -459,13 +459,8 @@ class Myelin:
             results.error = "No modules specified in claim"
             return results
 
-        # Deduplicate modules while preserving order (O(n) instead of O(n²))
-        seen: set[Modules] = set()
-        unique_modules: list[Modules] = []
-        for module in claim.modules:
-            if module not in seen:
-                seen.add(module)
-                unique_modules.append(module)
+        # Deduplicate modules while preserving order
+        unique_modules = list(dict.fromkeys(claim.modules))
 
         # A type of bill ending in 0 is a non-payment/zero claim
         if claim.bill_type.endswith("0"):
@@ -519,13 +514,7 @@ class Myelin:
                     ipsf_provider = None
             auto_modules = self._generate_auto_modules(claim, ipsf_provider)
 
-            # Recalculate unique_modules after auto-generation
-            seen = set()
-            unique_modules = []
-            for module in auto_modules:
-                if module not in seen:
-                    seen.add(module)
-                    unique_modules.append(module)
+            unique_modules = list(dict.fromkeys(auto_modules))
 
             # Re-evaluate provider needs
             new_ipsf_needed = any(m in IPSF_PRICERS for m in unique_modules)

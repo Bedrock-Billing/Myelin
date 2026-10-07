@@ -6,13 +6,12 @@ from myelin.helpers.utils import (
     JavaRuntimeError,
     handle_java_exceptions,
     py_date_to_java_date,
-    JavaRuntimeError,
 )
 from myelin.input import IrfPai
 from myelin.input.claim import (
     Claim,
 )
-from myelin.plugins import apply_client_methods, run_client_load_classes
+from myelin.plugins import apply_plugin_methods, load_plugin_classes
 
 from .irfg_output import IrfgOutput
 
@@ -43,24 +42,18 @@ ASSESSMENT_TAGS: dict[str, str] = {
 class IrfgClient:
     def __init__(self):
         """
-        DrgClient class is responsible for interacting with the CMS Java based DRG system.
+        IrfgClient class is responsible for interacting with the CMS Java based IRF CMG grouper.
         The Client will load the necessary Java classes and convert from Python objects to Java objects.
         """
         if not jpype.isJVMStarted():
             raise RuntimeError("JVM is not started")
         self.load_classes()
-        try:
-            run_client_load_classes(self)
-        except Exception:
-            pass
-        try:
-            apply_client_methods(self)
-        except Exception:
-            pass
+        load_plugin_classes(self)
+        apply_plugin_methods(self)
 
     def load_classes(self) -> None:
         """
-        Load the necessary Java classes for the DRG client.
+        Load the necessary Java classes for the IRF CMG grouper client.
         """
         self.cmg_grouper_class = jpype.JClass("gov.cms.grouper.irf.app.Cmg")
         self.irf_claim_class = jpype.JClass("gov.cms.grouper.irf.transfer.IrfClaim")
@@ -76,7 +69,9 @@ class IrfgClient:
             "com.mmm.his.cer.foundation.model.DiagnosisCode"
         )
 
-    def py_date_to_java_date(self, py_date: datetime | None) -> jpype.JObject | None:
+    def py_date_to_java_date(
+        self, py_date: datetime | str | int | None
+    ) -> jpype.JObject | None:
         """
         Convert a Python date object to a Java LocalDate object.
         """
@@ -143,7 +138,7 @@ class IrfgClient:
     @handle_java_exceptions
     def process(self, claim: Claim) -> IrfgOutput:
         """
-        Process the given claim and return the DRG output.
+        Process the given claim and return the IRF CMG grouper output.
         """
         if not claim:
             raise JavaRuntimeError(

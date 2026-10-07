@@ -16,7 +16,7 @@ from myelin.input.claim import (
     ProcedureCode,
 )
 from myelin.msdrg.msdrg_output import MsdrgOutput, MsdrgOutputDxCode, MsdrgOutputPrCode
-from myelin.plugins import apply_client_methods, run_client_load_classes
+from myelin.plugins import apply_plugin_methods, load_plugin_classes
 
 MSDRG_VSTART = "400"
 
@@ -51,14 +51,8 @@ class DrgClient:
         self.load_classes()
         self.load_drg_groupers()
         self._reconfig_lock = RLock()
-        try:
-            run_client_load_classes(self)
-        except Exception:
-            pass
-        try:
-            apply_client_methods(self)
-        except Exception:
-            pass
+        load_plugin_classes(self)
+        apply_plugin_methods(self)
 
     def load_enums(self) -> None:
         # Get enumeration values needed for DRG Runtime options

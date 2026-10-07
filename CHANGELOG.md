@@ -46,6 +46,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hospice unexpected errors** - an unexpected error while building a
   hospice claim raised `UnboundLocalError` instead of returning a `UNX` return
   code.
+- **Plugin failures were silently ignored** - if a plugin's
+  `client_load_classes` or `client_methods` hook failed (for example two
+  plugins providing the same method), clients continued without the plugin
+  and logged nothing. Clients still continue, but now log a warning with the
+  traceback on the `myelin.plugins.manager` logger. Malformed plugin entry
+  points are logged the same way. New `load_plugin_classes()` and
+  `apply_plugin_methods()` helpers in `myelin.plugins` run the hooks this way;
+  `run_client_load_classes()` and `apply_client_methods()` still raise.
+- **HHA grouper plugins** - `HhagClient` now runs the `client_load_classes`
+  and `client_methods` plugin hooks like every other client. Previously
+  plugins could not extend the HHA grouper.
 - **`AUTO` mode mutating the caller's claim** - `Myelin.process()` no longer
   appends the auto-generated modules to `claim.modules`; the claim keeps the
   modules the caller set. Previously a claim processed with `[AUTO]` came back

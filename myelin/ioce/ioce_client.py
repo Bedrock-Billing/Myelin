@@ -12,7 +12,7 @@ from myelin.input.claim import (
     ValueCode,
 )
 from myelin.ioce.ioce_output import IoceOutput, IoceOutputEdit
-from myelin.plugins import apply_client_methods, run_client_load_classes
+from myelin.plugins import apply_plugin_methods, load_plugin_classes
 
 
 class IoceClient:
@@ -24,14 +24,8 @@ class IoceClient:
                 "JVM is not started. Please start the JVM before using IoceClient."
             )
         self.load_classes()
-        try:
-            run_client_load_classes(self)
-        except Exception:
-            pass
-        try:
-            apply_client_methods(self)
-        except Exception:
-            pass
+        load_plugin_classes(self)
+        apply_plugin_methods(self)
 
     def load_classes(self) -> None:
         """Load all required Java classes and components"""

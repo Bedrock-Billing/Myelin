@@ -17,7 +17,7 @@ from myelin.helpers.utils import (
 )
 from myelin.input.claim import Claim
 from myelin.ioce.ioce_output import IoceOutput
-from myelin.plugins import apply_client_methods, run_client_load_classes
+from myelin.plugins import apply_plugin_methods, load_plugin_classes
 from myelin.pricers.opsf import OPSFProvider
 from myelin.pricers.url_loader import UrlLoader
 
@@ -133,15 +133,9 @@ class OppsClient:
         else:
             self.logger = getLogger("OppsClient")
         self.load_classes()
-        try:
-            run_client_load_classes(self)
-        except Exception:
-            pass
+        load_plugin_classes(self)
         self.pricer_setup()
-        try:
-            apply_client_methods(self)
-        except Exception:
-            pass
+        apply_plugin_methods(self)
 
     def load_classes(self) -> None:
         """
