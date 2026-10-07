@@ -350,7 +350,7 @@ class IpfClient:
                         except ValueError:
                             raise PricerRuntimeError(
                                 "IPF01",
-                                "Invalid procedure date format"
+                                "Invalid procedure date format",
                                 f"Invalid date format for procedure code {px.code}: {px.date}",
                             )
                     if (
@@ -430,7 +430,7 @@ class IpfClient:
             else:
                 raise PricerRuntimeError(
                     "IPF04",
-                    "DRG output is required for LTC pricing."
+                    "DRG output is required for IPF pricing.",
                     "A valid DRG must be provided in the claim's additional data. Or the MS-DRG module must be run prior to pricing.",
                 )
 

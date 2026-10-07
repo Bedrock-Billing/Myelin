@@ -186,9 +186,9 @@ class SnfClient:
                     hipps_units = line.units
                     hipps_date = line.service_date
         if hipps_date is None or hipps_code.strip() == "" or hipps_units <= 0:
-            raise ProviderDataError(
+            raise PricerRuntimeError(
                 "SNF01",
-                "HIPPS code missing/invalid or HIPPS units <= 0"
+                "HIPPS code missing/invalid or HIPPS units <= 0",
                 "Claim must have at least one line with revenue code 0022 and valid HCPCS code, units, and service date.",
             )
 

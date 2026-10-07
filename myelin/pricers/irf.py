@@ -278,20 +278,20 @@ class IrfClient:
                     else:
                         raise PricerRuntimeError(
                             "IRF01",
-                            "CMG code is required for IRF claims."
+                            "CMG code is required for IRF claims.",
                             "No CMG code found in claim lines.",
                         )
             if cmg_code is None:
                 raise PricerRuntimeError(
                     "IRF01",
-                    "CMG code is required for IRF claims."
+                    "CMG code is required for IRF claims.",
                     "No CMG code found in claim lines.",
                 )
         else:
             if irfg.cmg_group is None:
                 raise PricerRuntimeError(
                     "IRF01",
-                    "CMG code is required for IRF claims."
+                    "CMG code is required for IRF claims.",
                     "No CMG code found in claim lines.",
                 )
             cmg_code = irfg.cmg_group

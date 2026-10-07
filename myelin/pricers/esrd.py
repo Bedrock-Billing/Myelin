@@ -867,13 +867,13 @@ class EsrdClient:
         if not height_set:
             raise PricerRuntimeError(
                 "ESRD06",
-                "Patient Height is required for ESRD pricing"
+                "Patient Height is required for ESRD pricing",
                 "Please provide the patient's height in centimeters in Value code A9",
             )
         if not weight_set:
             raise PricerRuntimeError(
                 "ESRD07",
-                "Patient Weight is required for ESRD pricing"
+                "Patient Weight is required for ESRD pricing",
                 "Please provide the patient's weight in kilograms in Value code A8",
             )
 

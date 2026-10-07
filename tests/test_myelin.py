@@ -247,6 +247,29 @@ def test_snf_pricer_if_available(myelin_or_skip):
     assert hasattr(output, "model_dump")
 
 
+def test_snf_missing_hipps_keeps_provider(myelin_or_skip):
+    if not pricer_available("snf-pricer"):
+        pytest.skip("SNF pricer jar not present in ./jars/pricers")
+    if myelin_or_skip.snf_client is None:
+        pytest.skip("SNF client not initialized")
+
+    claim = claim_example()
+    claim.bill_type = "327"
+    claim.lines.clear()
+    claim.lines.append(LineItem(revenue_code="0001", units=1))
+    ipsf_provider = IPSFProvider()
+    ipsf_provider.from_claim(claim, myelin_or_skip.snf_client.db)
+    output, provider = myelin_or_skip.snf_client.process(claim, ipsf_provider)
+    # Missing HIPPS is a claim problem: the real provider is returned, and the
+    # description and explanation are separate messages.
+    assert output.return_code.code == "SNF01"
+    assert output.return_code.description == (
+        "HIPPS code missing/invalid or HIPPS units <= 0"
+    )
+    assert output.return_code.explanation
+    assert provider.provider_ccn == ipsf_provider.provider_ccn != ""
+
+
 def test_irf_pricer_if_availabler(myelin_or_skip):
     if not pricer_available("irf-pricer"):
         pytest.skip("IRF pricer jar not present in ./jars/pricers")

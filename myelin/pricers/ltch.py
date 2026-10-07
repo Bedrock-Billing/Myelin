@@ -355,7 +355,7 @@ class LtchClient:
             else:
                 raise PricerRuntimeError(
                     "LTC03",
-                    "DRG output is required for LTC pricing."
+                    "DRG output is required for LTC pricing.",
                     "A valid DRG must be provided in the claim's additional data. Or the MS-DRG module must be run prior to pricing.",
                 )
 

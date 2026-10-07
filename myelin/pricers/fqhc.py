@@ -210,8 +210,8 @@ class FqhcClient:
         if zip_code.strip() == "":
             raise PricerRuntimeError(
                 "FQHC01",
-                "No Carrier/Locality provided and no Zip code available to lookup Carrier/Locality Information"
-                "No Carrier/Locality provided and no Zip code available to lookup Carrier/Locality Information",
+                "No Carrier/Locality available",
+                "No Carrier/Locality was provided and no ZIP code was found on the billing or servicing provider to look one up.",
             )
 
         session: Session | None = None

@@ -38,6 +38,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   units `T`/`R`. Previously any CCN with `2` or `4` in the third position
   matched, which also covered ESRD facilities, community mental health
   centers, and comprehensive outpatient rehab facilities.
+- **Pricer error messages run together** - ESRD (`ESRD06`, `ESRD07`), FQHC
+  (`FQHC01`), IPF (`IPF01`, `IPF04`), IRF (`IRF01`), LTCH (`LTC03`), and SNF
+  (`SNF01`) errors were missing a comma between the description and the
+  explanation, so the two sentences were joined into the description with no
+  space and the explanation was empty. They are now separate. Error codes are
+  unchanged.
+- **Wrong pricer named in error messages** - `IPF04` and `IPPS03` said "DRG
+  output is required for LTC pricing"; they now name IPF and IPPS. `IPPS03`'s
+  explanation is now a separate field, and `FQHC01` no longer repeats the same
+  sentence as its explanation.
+- **SNF missing HIPPS error** - `SNF01` (missing or invalid HIPPS code on the
+  `0022` line) is now raised as a pricer error instead of a provider data
+  error, so the SNF output keeps the real IPSF provider instead of an empty
+  one.
 
 ## [1.0.2] - 2026-10-06
 
