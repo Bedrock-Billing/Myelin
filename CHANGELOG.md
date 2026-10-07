@@ -16,6 +16,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   re-runs, reused template claims) failed with "Auto module cannot be paired
   with any other module request". `[AUTO, AUTO]` is now treated as `[AUTO]`
   instead of being rejected.
+- **`AUTO` mode routing psych and LTCH claims to IPPS** - `AUTO` now looks up
+  the IPSF provider before choosing modules, so `11x` inpatient claims are
+  sent to the IPF (`PSYCH`), LTCH, or IRF pricer based on the provider type,
+  with the CCN as a fallback. Previously the provider was never available at
+  that point and every `11x` claim went to IPPS, which returned a $0 payment
+  for psych and LTCH hospitals. A failed provider lookup no longer blocks
+  routing; it is still reported if the selected pricer needs the provider.
+  See `docs/docs/auto-routing.md` for the full routing table and CMS sources.
+- **`AUTO` mode routing for non-inpatient bill types** - the bill type now
+  decides the setting and provider data only picks among inpatient pricers,
+  so outpatient (`13x`) claims from psych, LTCH, and rehab hospitals stay on
+  IOCE + OPPS. Hospice claims (`81x`/`82x`) now route to the hospice pricer
+  and hospital swing-bed claims (`18x`) to the SNF pricer; both previously
+  went to IOCE + OPPS.
+- **Provider type `00` mapping** - `PROVIDER_TYPES["00"]` (short-term acute
+  hospital) now maps to IPPS instead of the IPF pricer, and type `50`
+  (rehabilitation distinct part) now maps to IRF to match type `04`.
+- **CCN ranges in `AUTO` routing** - the CCN fallback now uses the CMS ranges:
+  LTCH `xx2000`-`xx2299`, psych `xx4000`-`xx4499` or units `S`/`M`, and rehab
+  units `T`/`R`. Previously any CCN with `2` or `4` in the third position
+  matched, which also covered ESRD facilities, community mental health
+  centers, and comprehensive outpatient rehab facilities.
 
 ## [1.0.2] - 2026-10-06
 

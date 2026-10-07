@@ -10,10 +10,10 @@ from pydantic import BaseModel
 
 from myelin.input.claim import Modules
 
-PROVIDER_TYPES = {
+PROVIDER_TYPES: dict[str, dict[str, str | list[Modules]]] = {
     "00": {
         "description": "Short Term Facility",
-        "modules": [Modules.MCE, Modules.MSDRG, Modules.PSYCH],
+        "modules": [Modules.MCE, Modules.MSDRG, Modules.IPPS],
     },
     "02": {
         "description": "Long Term",
@@ -73,7 +73,10 @@ PROVIDER_TYPES = {
         "description": "Psychiatric Distinct Part",
         "modules": [Modules.MCE, Modules.MSDRG, Modules.PSYCH],
     },
-    "50": {"description": "Rehabilitation Distinct Part"},
+    "50": {
+        "description": "Rehabilitation Distinct Part",
+        "modules": [Modules.MCE, Modules.CMG, Modules.IRF],
+    },
     "51": {"description": "Short-Term Hospital Swing Bed"},
     "52": {"description": "Long-Term Care Hospital Swing Bed"},
     "53": {"description": "Rehabilitation Facility Swing Bed"},

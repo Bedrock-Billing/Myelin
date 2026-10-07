@@ -54,6 +54,12 @@ IPSF_PRICERS: set[Modules] = {
     Modules.HHA,
 }
 OPSF_PRICERS: set[Modules] = {Modules.OPPS, Modules.ESRD}
+INPATIENT_PRICERS: set[Modules] = {
+    Modules.IPPS,
+    Modules.PSYCH,
+    Modules.LTCH,
+    Modules.IRF,
+}
 
 
 class MyelinOutput(BaseModel):
@@ -316,39 +322,17 @@ class Myelin:
         self,
         claim: Claim,
         ipsf_provider: IPSFProvider | None,
-        opsf_provider: OPSFProvider | None,
     ) -> list[Modules]:
         """Generate a list of modules based on the claim type.
+
+        The bill type and revenue codes decide the setting (inpatient,
+        outpatient, SNF, HHA, ...). Provider data only decides which
+        inpatient pricer handles an 11x claim.
 
         Returns the generated list; the claim itself is not modified.
         """
         auto_modules: list[Modules] = []
-        provider_type = ""
-        if ipsf_provider is not None:
-            if ipsf_provider.provider_type and ipsf_provider.provider_type != "":
-                provider_type = ipsf_provider.provider_type
-        elif opsf_provider is not None:
-            if opsf_provider.provider_type and opsf_provider.provider_type != "":
-                provider_type = opsf_provider.provider_type
-
-        provider_obj = PROVIDER_TYPES.get(provider_type, None)
-
-        # ----------------------------------------------------------------------
-        # Generate modules based on provider type
-        # ----------------------------------------------------------------------
         mods_set = False
-        if provider_obj is not None:
-            provider_modules = provider_obj.get("modules", None)
-            if provider_modules is not None:
-                for module in provider_modules:
-                    if isinstance(module, Modules):
-                        auto_modules.append(module)
-                        mods_set = True
-            # Remove specialized groupers if their assesment data is missing
-            if Modules.HHAG in auto_modules and claim.oasis_assessment is None:
-                auto_modules.remove(Modules.HHAG)
-            if Modules.CMG in auto_modules and claim.irf_pai is None:
-                auto_modules.remove(Modules.CMG)
 
         # --------------------------------------------------------------------------
         # Generate modules based on Bill Type
@@ -378,11 +362,6 @@ class Myelin:
             bill_type_facility = bill_type[0]
             bill_type_type_of_care = bill_type[1]
 
-            ipsf_ccn: str = (
-                ipsf_provider.provider_ccn
-                if ipsf_provider is not None and ipsf_provider.provider_ccn is not None
-                else ""
-            )
             # FQHC
             if bill_type.startswith("77"):
                 auto_modules.append(Modules.IOCE)
@@ -392,31 +371,65 @@ class Myelin:
                 auto_modules.append(Modules.ESRD)
             elif bill_type.startswith("83"):  # ASCs
                 auto_modules.append(Modules.ASC)
+            elif bill_type.startswith(("81", "82")):  # Hospice
+                auto_modules.append(Modules.HOSPICE)
             elif bill_type_facility == "2":  # SNF, secondary to rev code lookup above
                 if bill_type_type_of_care in ("2", "3"):
                     auto_modules.append(Modules.IOCE)
+                auto_modules.append(Modules.SNF)
+            elif bill_type.startswith("18"):  # Hospital swing bed, paid under SNF PPS
                 auto_modules.append(Modules.SNF)
             elif bill_type_facility == "3":  # Home Health
                 if claim.oasis_assessment is not None:
                     auto_modules.append(Modules.HHAG)
                 auto_modules.append(Modules.HHA)
             elif bill_type.startswith("11"):
-                auto_modules.append(Modules.MCE)
-                auto_modules.append(Modules.MSDRG)
-                if len(ipsf_ccn) >= 3:
-                    if ipsf_ccn[2] in ("4", "S", "M"):
-                        auto_modules.append(Modules.PSYCH)
-                    elif ipsf_ccn[2] == "2":
-                        auto_modules.append(Modules.LTCH)
-                    else:
-                        auto_modules.append(Modules.IPPS)
-                else:
-                    auto_modules.append(Modules.IPPS)
+                auto_modules.extend(self._inpatient_auto_modules(claim, ipsf_provider))
             else:
                 auto_modules.append(Modules.IOCE)
                 auto_modules.append(Modules.OPPS)
 
         return auto_modules
+
+    @staticmethod
+    def _inpatient_auto_modules(
+        claim: Claim, ipsf_provider: IPSFProvider | None
+    ) -> list[Modules]:
+        """Choose the modules for an 11x inpatient claim.
+
+        The PSF provider type is used first; the CCN is the fallback when the
+        provider type has no inpatient routing (e.g. rural referral centers,
+        sole community hospitals) or the lookup failed. CCN ranges follow the
+        Provider Specific File crosswalk in the Claims Processing Manual,
+        Chapter 3, Addendum A.
+        """
+        if ipsf_provider is not None:
+            provider_obj = PROVIDER_TYPES.get(ipsf_provider.provider_type or "", {})
+            provider_modules = [
+                m for m in provider_obj.get("modules", []) if isinstance(m, Modules)
+            ]
+            if any(m in INPATIENT_PRICERS for m in provider_modules):
+                if Modules.CMG in provider_modules and claim.irf_pai is None:
+                    provider_modules.remove(Modules.CMG)
+                return provider_modules
+
+        ipsf_ccn = (
+            ipsf_provider.provider_ccn
+            if ipsf_provider is not None and ipsf_provider.provider_ccn is not None
+            else ""
+        )
+        unit_code = ipsf_ccn[2:3]  # special unit letter, e.g. S = psych unit
+        ccn_type = ipsf_ccn[2:4]  # positions 3-4 identify the facility type
+        if unit_code in ("T", "R"):  # rehab unit (R = in a CAH)
+            if claim.irf_pai is not None:
+                return [Modules.MCE, Modules.CMG, Modules.IRF]
+            return [Modules.MCE, Modules.IRF]
+        pricer = Modules.IPPS
+        if unit_code in ("S", "M") or ccn_type in ("40", "41", "42", "43", "44"):
+            pricer = Modules.PSYCH
+        elif ccn_type in ("20", "21", "22"):
+            pricer = Modules.LTCH
+        return [Modules.MCE, Modules.MSDRG, pricer]
 
     def process(self, claim: Claim, **kwargs: object) -> MyelinOutput:
         """Process a claim through the appropriate modules based on its configuration."""
@@ -472,9 +485,19 @@ class Myelin:
                     "Auto module cannot be paired with any other module request"
                 )
                 return results
-            auto_modules = self._generate_auto_modules(
-                claim, ipsf_provider, opsf_provider
-            )
+            # Look up the IPSF provider before choosing modules so provider data
+            # can pick the inpatient pricer. A failed lookup isn't fatal here:
+            # routing falls back to the bill type, and the lookup below retries
+            # and reports the error if a pricer actually needs the provider.
+            # Only 11x routing reads the provider, so this lookup could be
+            # skipped for other bill types to save a query per claim.
+            if self.db_manager.engine is not None:
+                try:
+                    ipsf_provider = IPSFProvider()
+                    ipsf_provider.from_claim(claim, self.db_manager.engine, **kwargs)
+                except ProviderDataError:
+                    ipsf_provider = None
+            auto_modules = self._generate_auto_modules(claim, ipsf_provider)
 
             # Recalculate unique_modules after auto-generation
             seen = set()
