@@ -450,8 +450,13 @@ class IpfClient:
         return pricing_request, ipsf_provider
 
     def process_claim(
-        self, claim: Claim, pricing_request: jpype.JObject
+        self,
+        claim: Claim,
+        pricing_request: jpype.JObject,
+        **kwargs: object,  # noqa: ARG002
     ) -> jpype.JObject | None:
+        # Extra kwargs (e.g. session) are for plugins that replace this method;
+        # the built-in pricer ignores them.
         if hasattr(self.dispatch_obj, "process"):
             return self.dispatch_obj.process(pricing_request)
         raise ValueError("Dispatch object does not have a process method.")
@@ -475,7 +480,7 @@ class IpfClient:
             pricing_request, ipsf_provider = self.create_input_claim(
                 claim, ipsf_provider, drg_output, **kwargs
             )
-            pricing_response = self.process_claim(claim, pricing_request)
+            pricing_response = self.process_claim(claim, pricing_request, **kwargs)
             ipf_output.from_java(pricing_response)
         except Exception as e:
             ipf_output = IpfOutput()

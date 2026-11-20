@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-20
+
+### Fixed
+
+- **Plugins replacing `process_claim` lost the caller's kwargs** - since
+  1.0.2, `IppsClient`, `IpfClient` and `LtchClient` called `process_claim()`
+  without the `process()` kwargs (e.g. `session`), so a plugin that replaces
+  `process_claim` through the `client_methods` hook and needs them failed:
+  1.0.2 raised `TypeError`, and 1.1.0 returned an `UNX` return code with no
+  payment. `process()` forwards the kwargs again, and the built-in
+  `process_claim()` accepts and ignores them, so callers without such a plugin
+  still don't get the `TypeError` that 1.0.2 fixed.
+
 ## [1.1.0] - 2026-11-20
 
 ### Changed
