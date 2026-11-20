@@ -223,27 +223,43 @@ def py_date_to_java_date(
         return self.java_date_class.parse(date_str, formatter)
 
 
+def supported_years(pps: str, today: datetime | None = None) -> list[int]:
+    """Years a pricer is allowed to price, newest first.
+
+    By default: the current federal fiscal year back to three years before the
+    current calendar year. The fiscal year starts on October 1, so from October
+    through December the window includes next year (FY2027 starts 2026-10-01);
+    without it, claims for the new fiscal year are rejected until January.
+    Calendar-year pricers are unaffected: a pricer without code for a year still
+    refuses it.
+
+    ``{pps}_SUPPORTED_YEARS`` (comma-separated) overrides the default; years
+    older than three years before the current calendar year are dropped.
+    """
+    today = today or datetime.now()
+    oldest = today.year - 3
+    override = getenv(f"{pps}_SUPPORTED_YEARS")
+    if override is not None:
+        years = []
+        for year_str in override.split(","):
+            try:
+                year = int(year_str.strip())
+            except ValueError:
+                raise ValueError(
+                    f"Invalid year in {pps}_SUPPORTED_YEARS: {year_str}"
+                ) from None
+            if year >= oldest:
+                years.append(year)
+        return years
+    newest = today.year + 1 if today.month >= 10 else today.year
+    return list(range(newest, oldest - 1, -1))
+
+
 def create_supported_years(pps: str) -> jpype.JObject:
-    today = datetime.now()
-    year = today.year
     java_integer_class = jpype.JClass("java.lang.Integer")
     java_array = jpype.JClass("java.util.ArrayList")()
-    if getenv(f"{pps}_SUPPORTED_YEARS") is not None:
-        supported_years_env = str(getenv(f"{pps}_SUPPORTED_YEARS")).split(",")
-        if len(supported_years_env) > 0:
-            for year_str in supported_years_env:
-                try:
-                    year_int = int(year_str.strip())
-                    if year_int >= today.year - 3:
-                        java_array.add(java_integer_class(year_int))
-                except ValueError:
-                    raise ValueError(
-                        f"Invalid year in {pps}_SUPPORTED_YEARS: {year_str}"
-                    )
-    else:
-        while year >= today.year - 3:
-            java_array.add(java_integer_class(year))
-            year -= 1
+    for year in supported_years(pps):
+        java_array.add(java_integer_class(year))
     return java_array
 
 

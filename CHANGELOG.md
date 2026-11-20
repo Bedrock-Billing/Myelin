@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **New fiscal year rejected until January** - pricers were only allowed the
+  current calendar year and the three before it, so from October 1 through
+  December, claims in the new federal fiscal year (e.g. FY2027 from
+  2026-10-01) failed with `YearNotImplementedException` in IPPS, LTCH, IPF,
+  IRF, SNF and hospice, even with that year's pricer JARs installed. The
+  default window now runs from the current fiscal year back to three years
+  before the current calendar year. `<PPS>_SUPPORTED_YEARS` still overrides it.
 - **One failing module stopped all later modules** - `Myelin.process()` now
   runs each module independently. If one fails, its error is recorded and the
   remaining modules still run; a pricer whose required input failed reports
